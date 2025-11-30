@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import sys
 import textwrap
+import csv # <--- Nova biblioteca para gerar Excel/CSV
 
 import win32api
 import win32print
@@ -13,13 +14,11 @@ import ctypes
 # -------------- CONFIGURAÇÕES --------------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
-
-# DEFINA SEU DDD PADRÃO AQUI
 DDD_PADRAO = "83" 
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v3.9' 
+        myappid = 'totalpharma.delivery.pdv.v4.0' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -79,14 +78,14 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("TotalPharma - PDV Windows")
-        self.geometry("900x720") # Aumentei um pouquinho para caber o botão novo
+        self.geometry("900x720")
         
         try:
             if getattr(sys, 'frozen', False):
-                application_path = os.path.dirname(sys.executable)
+                app_path = os.path.dirname(sys.executable)
             else:
-                application_path = os.path.dirname(os.path.abspath(__file__))
-            caminho_icone = os.path.join(application_path, "farmacia.ico")
+                app_path = os.path.dirname(os.path.abspath(__file__))
+            caminho_icone = os.path.join(app_path, "farmacia.ico")
             if os.path.exists(caminho_icone):
                 self.iconbitmap(caminho_icone)
                 self.wm_iconbitmap(caminho_icone)
@@ -176,25 +175,20 @@ class App(ctk.CTk):
         self.btn_imprimir = ctk.CTkButton(frame_pag, text="FINALIZAR E IMPRIMIR", command=self.finalizar, height=55, fg_color="#2CC985", text_color="black", font=("Arial", 15, "bold"))
         self.btn_imprimir.pack(fill="x", padx=20, pady=(30, 10))
         
-        # --- BOTOES EXTRAS (Lado a Lado) ---
         frame_botoes = ctk.CTkFrame(frame_pag, fg_color="transparent")
         frame_botoes.pack(fill="x", padx=20)
 
-        # Botão LIMPAR (Vermelho)
         self.btn_limpar = ctk.CTkButton(frame_botoes, text="LIMPAR TELA", command=self.limpar_tela, fg_color="#C0392B", width=120)
         self.btn_limpar.pack(side="left", fill="x", expand=True, padx=(0, 5))
 
-        # Botão RELATORIO (Cinza)
-        self.btn_relatorio = ctk.CTkButton(frame_botoes, text="RELATÓRIO", command=self.ver_relatorio, fg_color="#555", width=120)
+        self.btn_relatorio = ctk.CTkButton(frame_botoes, text="RELATÓRIO DIA", command=self.abrir_janela_relatorio, fg_color="#555", width=120)
         self.btn_relatorio.pack(side="right", fill="x", expand=True, padx=(5, 0))
 
-
-    # ---------------- LÓGICA DE FORMATAÇÃO ----------------
+    # ---------------- FORMATACAO ----------------
     def limpar_telefone(self, tel):
         numeros = "".join(filter(str.isdigit, tel))
         tam = len(numeros)
-        if tam == 8 or tam == 9:
-            return f"{DDD_PADRAO}{numeros}"
+        if tam == 8 or tam == 9: return f"{DDD_PADRAO}{numeros}"
         return numeros
 
     def formatar_telefone_visual(self, tel):
@@ -210,32 +204,16 @@ class App(ctk.CTk):
         try: return float(valor_str.replace(",", ".").strip())
         except: return 0.0
     
-    # ---------------- LÓGICA DO SISTEMA ----------------
+    # ---------------- LÓGICA GERAL ----------------
     def limpar_tela(self):
-        """Limpa todos os campos para um novo pedido"""
-        # Limpa Dados Cliente
-        self.entry_tel.delete(0, "end")
-        self.entry_nome.delete(0, "end")
-        self.entry_rua.delete(0, "end")
-        self.entry_num.delete(0, "end")
-        self.entry_bairro.delete(0, "end")
-        self.entry_ref.delete(0, "end")
-        
-        # Limpa Valores
-        self.entry_val.delete(0, "end")
-        self.entry_taxa.delete(0, "end")
+        self.entry_tel.delete(0, "end"); self.entry_nome.delete(0, "end")
+        self.entry_rua.delete(0, "end"); self.entry_num.delete(0, "end")
+        self.entry_bairro.delete(0, "end"); self.entry_ref.delete(0, "end")
+        self.entry_val.delete(0, "end"); self.entry_taxa.delete(0, "end")
         self.entry_troco.delete(0, "end")
-        
-        # Reseta Visuais
-        self.lbl_total.configure(text="TOTAL: R$ 0.00")
-        self.lbl_troco.configure(text="Troco: R$ 0.00")
-        
-        # Reseta Combos
-        self.combo_pagamento.set("Dinheiro")
-        self.entry_troco.configure(state="normal") # Destrava caso estivesse bloqueado
+        self.lbl_total.configure(text="TOTAL: R$ 0.00"); self.lbl_troco.configure(text="Troco: R$ 0.00")
+        self.combo_pagamento.set("Dinheiro"); self.entry_troco.configure(state="normal")
         self.var_entregador.set("Entregador da Manhã")
-        
-        # Foca no telefone
         self.entry_tel.focus_set()
 
     def mudou_forma_pagamento(self, escolha):
@@ -251,7 +229,6 @@ class App(ctk.CTk):
         tel_bruto = self.entry_tel.get()
         tel_limpo = self.limpar_telefone(tel_bruto)
         if not tel_limpo: return
-        
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         try:
@@ -259,7 +236,6 @@ class App(ctk.CTk):
             res = cursor.fetchone()
         except: res = None
         conn.close()
-        
         if res:
             self.entry_nome.delete(0, "end"); self.entry_nome.insert(0, res[0])
             if res[1]: self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, res[1])
@@ -282,10 +258,8 @@ class App(ctk.CTk):
         if self.combo_pagamento.get() != "Dinheiro": return
         total = self.atualizar_totais(event=None)
         pago = self.formatar_float(self.entry_troco.get())
-        if pago > total:
-            self.lbl_troco.configure(text=f"TROCO: R$ {pago - total:.2f}")
-        else:
-            self.lbl_troco.configure(text="Troco: R$ 0.00")
+        if pago > total: self.lbl_troco.configure(text=f"TROCO: R$ {pago - total:.2f}")
+        else: self.lbl_troco.configure(text="Troco: R$ 0.00")
 
     def imprimir_cupom_windows(self, texto):
         try:
@@ -295,15 +269,12 @@ class App(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Erro de Permissão", f"Erro arquivo:\n{e}")
             return
-        try:
-            win32api.ShellExecute(0, "print", filename, None, ".", 0)
-        except:
-            os.startfile(filename)
+        try: win32api.ShellExecute(0, "print", filename, None, ".", 0)
+        except: os.startfile(filename)
 
     def finalizar(self):
         tel_bruto = self.entry_tel.get()
         tel_limpo = self.limpar_telefone(tel_bruto)
-        
         nome = self.entry_nome.get().strip()
         rua = self.entry_rua.get().strip()
         num = self.entry_num.get().strip()
@@ -329,7 +300,6 @@ class App(ctk.CTk):
             troco_msg = "NAO (JA PAGO)"
             pago_msg = f"R$ {total:.2f}"
 
-        # Cupom
         largura_max = 40 
         rua_fmt = textwrap.fill(f"{rua}, {num}", width=largura_max)
         ref_fmt = textwrap.fill(f"Obs: {ref}", width=largura_max)
@@ -383,29 +353,104 @@ TROCO:               {troco_msg:>13}
         conn.close()
 
         self.imprimir_cupom_windows(cupom)
-        
-        # AGORA CHAMA A FUNÇÃO DE LIMPAR (Código limpo e reutilizável)
         self.limpar_tela()
 
-    def ver_relatorio(self):
+    # ---------------- NOVO RELATÓRIO AVANÇADO ----------------
+    def abrir_janela_relatorio(self):
         hoje = datetime.now().strftime("%Y-%m-%d")
+        
+        # Conecta no BD para pegar dados
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT count(*), sum(valor_total) FROM pedidos WHERE data = ?", (hoje,))
-        qtd, total = cursor.fetchone()
         
-        msg = f"RELATÓRIO DE HOJE ({datetime.now().strftime('%d/%m')}):\n\n"
-        msg += f"Total Entregas: {qtd}\n"
-        msg += f"Faturamento Total: R$ {total if total else 0:.2f}\n\n"
-        msg += "--- POR PAGAMENTO ---\n"
-        try:
-            cursor.execute("SELECT metodo_pagamento, sum(valor_total) FROM pedidos WHERE data = ? GROUP BY metodo_pagamento", (hoje,))
-            for tipo, val in cursor.fetchall():
-                tipo_nome = tipo if tipo else "Desconhecido"
-                msg += f"{tipo_nome}: R$ {val:.2f}\n"
-        except: pass
+        # 1. Total Geral
+        cursor.execute("SELECT count(*), sum(valor_total) FROM pedidos WHERE data = ?", (hoje,))
+        qtd_total, receita_total = cursor.fetchone()
+        receita_total = receita_total if receita_total else 0.0
+        ticket_medio = receita_total / qtd_total if qtd_total > 0 else 0.0
+
+        # 2. Entregadores
+        cursor.execute("SELECT entregador, count(*) FROM pedidos WHERE data = ? GROUP BY entregador", (hoje,))
+        dados_entregadores = cursor.fetchall() # Lista de (Nome, Qtd)
+
+        # 3. Pagamentos
+        cursor.execute("SELECT metodo_pagamento, sum(valor_total) FROM pedidos WHERE data = ? GROUP BY metodo_pagamento", (hoje,))
+        dados_pagamentos = cursor.fetchall() # Lista de (Tipo, Valor)
+
         conn.close()
-        messagebox.showinfo("Relatório", msg)
+
+        # --- CRIAÇÃO DA JANELA POP-UP ---
+        top = ctk.CTkToplevel(self)
+        top.title(f"Relatório do Dia ({datetime.now().strftime('%d/%m')})")
+        top.geometry("400x550")
+        top.attributes("-topmost", True) # Força ficar na frente
+
+        # Cabeçalho
+        ctk.CTkLabel(top, text="RESUMO FINANCEIRO", font=("Arial", 16, "bold"), text_color="#2CC985").pack(pady=(15,5))
+        ctk.CTkLabel(top, text=f"Faturamento: R$ {receita_total:.2f}", font=("Arial", 20, "bold")).pack()
+        ctk.CTkLabel(top, text=f"Total Entregas: {qtd_total}  |  Ticket Médio: R$ {ticket_medio:.2f}").pack(pady=5)
+
+        ctk.CTkFrame(top, height=2, fg_color="gray").pack(fill="x", padx=20, pady=10)
+
+        # Seção Entregadores
+        ctk.CTkLabel(top, text="POR ENTREGADOR (Qtd)", font=("Arial", 14, "bold")).pack()
+        if not dados_entregadores:
+            ctk.CTkLabel(top, text="Nenhuma entrega hoje.").pack()
+        else:
+            for nome, qtd in dados_entregadores:
+                ctk.CTkLabel(top, text=f"{nome}: {qtd} entregas").pack(anchor="w", padx=40)
+
+        ctk.CTkFrame(top, height=2, fg_color="gray").pack(fill="x", padx=20, pady=10)
+
+        # Seção Pagamentos
+        ctk.CTkLabel(top, text="POR PAGAMENTO (R$)", font=("Arial", 14, "bold")).pack()
+        if not dados_pagamentos:
+            ctk.CTkLabel(top, text="Nenhum pagamento hoje.").pack()
+        else:
+            for tipo, val in dados_pagamentos:
+                tipo_str = tipo if tipo else "Outros"
+                ctk.CTkLabel(top, text=f"{tipo_str}: R$ {val:.2f}").pack(anchor="w", padx=40)
+
+        ctk.CTkFrame(top, height=2, fg_color="gray").pack(fill="x", padx=20, pady=20)
+
+        # Botão Exportar Excel (CSV)
+        ctk.CTkButton(top, text="SALVAR EM EXCEL (CSV)", command=lambda: self.exportar_csv(hoje), fg_color="#2980B9").pack(fill="x", padx=20, pady=10)
+
+    def exportar_csv(self, data_hoje):
+        try:
+            # Salva na Área de Trabalho para ser fácil achar
+            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            filename = os.path.join(desktop, f"Relatorio_Farmacia_{data_hoje}.csv")
+
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT p.id, p.data, c.nome, p.entregador, p.valor_total, p.metodo_pagamento
+                FROM pedidos p
+                JOIN clientes c ON p.cliente_tel = c.telefone
+                WHERE p.data = ?
+            """, (data_hoje,))
+            dados = cursor.fetchall()
+            conn.close()
+
+            if not dados:
+                messagebox.showinfo("Vazio", "Não há dados para exportar hoje.")
+                return
+
+            # Escreve CSV
+            with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f, delimiter=';') # Ponto e virgula é melhor pro Excel Brasil
+                writer.writerow(["ID", "Data", "Cliente", "Entregador", "Valor (R$)", "Pagamento"])
+                for linha in dados:
+                    # Formata o valor float para string com vírgula (padrão BR)
+                    linha_fmt = list(linha)
+                    linha_fmt[4] = f"{linha[4]:.2f}".replace(".", ",")
+                    writer.writerow(linha_fmt)
+            
+            messagebox.showinfo("Sucesso", f"Relatório salvo na Área de Trabalho!\n\nArquivo: {os.path.basename(filename)}")
+            
+        except Exception as e:
+            messagebox.showerror("Erro Exportação", str(e))
 
 if __name__ == "__main__":
     app = App()
