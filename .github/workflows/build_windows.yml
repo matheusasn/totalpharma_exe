@@ -1,0 +1,33 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10' # Versão estável
+
+    - name: Install Dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build with PyInstaller
+      # O argumento --collect-all customtkinter é CRUCIAL para não bugar o tema
+      run: |
+        pyinstaller main.py --name FarmaciaApp --onefile --windowed --noconsole --collect-all customtkinter
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: FarmaciaApp_EXE
+        path: dist/FarmaciaApp.exe
