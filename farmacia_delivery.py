@@ -8,16 +8,15 @@ import sys
 # Importações exclusivas do Windows
 import win32api
 import win32print
-import ctypes # Para o ícone na barra de tarefas
+import ctypes
 
 # -------------- CONFIGURAÇÕES INICIAIS --------------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 def configurar_identidade_windows():
-    """Força o ícone a aparecer na Barra de Tarefas do Windows"""
     try:
-        myappid = 'totalpharma.delivery.pdv.vfinal' 
+        myappid = 'totalpharma.delivery.pdv.v3.3' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except:
         pass
@@ -37,11 +36,17 @@ def init_db():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
+        # Cria tabela Clientes (Agora com campos separados)
+        # Nota: Se a tabela já existe, o comando CREATE não faz nada.
+        # As colunas novas são adicionadas nos ALTER TABLE abaixo.
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS clientes (
                 telefone TEXT PRIMARY KEY,
                 nome TEXT,
-                endereco TEXT
+                rua TEXT,
+                numero TEXT,
+                bairro TEXT,
+                referencia TEXT
             )
         """)
         
@@ -57,10 +62,17 @@ def init_db():
             )
         """)
         
-        try:
-            cursor.execute("ALTER TABLE pedidos ADD COLUMN metodo_pagamento TEXT")
-        except:
-            pass
+        # MIGRACAO: Adiciona colunas novas se não existirem (para quem já rodou o app antes)
+        colunas_novas = ["rua", "numero", "bairro", "referencia", "metodo_pagamento"]
+        for col in colunas_novas:
+            try:
+                # Tenta adicionar na tabela clientes (exceto metodo_pagamento que é pedidos)
+                if col == "metodo_pagamento":
+                    cursor.execute(f"ALTER TABLE pedidos ADD COLUMN {col} TEXT")
+                else:
+                    cursor.execute(f"ALTER TABLE clientes ADD COLUMN {col} TEXT")
+            except:
+                pass # Coluna já existe
 
         conn.commit()
         conn.close()
@@ -74,16 +86,14 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("TotalPharma - PDV Windows")
-        self.geometry("900x650")
+        self.geometry("900x700") # Aumentei um pouco a altura
         
-        # --- ÍCONE ---
         caminho_icone = "farmacia.ico"
         if os.path.exists(caminho_icone):
             try:
                 self.iconbitmap(caminho_icone)
                 self.wm_iconbitmap(caminho_icone)
-            except:
-                pass 
+            except: pass 
         
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
@@ -98,27 +108,49 @@ class App(ctk.CTk):
         
         ctk.CTkLabel(frame_cli, text="DADOS DO CLIENTE", font=("Arial", 16, "bold"), text_color="#3B8ED0").pack(pady=(15,10))
 
-        ctk.CTkLabel(frame_cli, text="Telefone (Digite e Tab):").pack(anchor="w", padx=15)
+        # Telefone
+        ctk.CTkLabel(frame_cli, text="Telefone (Tab para buscar):").pack(anchor="w", padx=15)
         self.entry_tel = ctk.CTkEntry(frame_cli, placeholder_text="Somente números")
         self.entry_tel.pack(fill="x", padx=15, pady=(0, 10))
         self.entry_tel.bind("<FocusOut>", self.buscar_cliente)
 
+        # Nome
         ctk.CTkLabel(frame_cli, text="Nome do Cliente:").pack(anchor="w", padx=15)
         self.entry_nome = ctk.CTkEntry(frame_cli)
         self.entry_nome.pack(fill="x", padx=15, pady=(0, 10))
 
-        ctk.CTkLabel(frame_cli, text="Endereço Completo:").pack(anchor="w", padx=15)
-        self.txt_end = ctk.CTkTextbox(frame_cli, height=100)
-        self.txt_end.pack(fill="x", padx=15, pady=(0, 10))
+        # --- SEÇÃO DE ENDEREÇO NOVO ---
+        ctk.CTkLabel(frame_cli, text="Endereço de Entrega:", text_color="#3B8ED0", font=("Arial", 13, "bold")).pack(anchor="w", padx=15, pady=(10, 5))
+        
+        # Linha 1: Rua e Número lado a lado
+        frame_end_1 = ctk.CTkFrame(frame_cli, fg_color="transparent")
+        frame_end_1.pack(fill="x", padx=15)
+        
+        # Rua (ocupa mais espaço)
+        self.entry_rua = ctk.CTkEntry(frame_end_1, placeholder_text="Nome da Rua")
+        self.entry_rua.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        
+        # Número (ocupa menos espaço)
+        self.entry_num = ctk.CTkEntry(frame_end_1, placeholder_text="Nº", width=60)
+        self.entry_num.pack(side="right")
 
-        # --- SEUS TEXTOS PERSONALIZADOS AQUI ---
-        ctk.CTkLabel(frame_cli, text="Selecione o Entregador:").pack(anchor="w", padx=15, pady=(10,0))
+        # Linha 2: Bairro
+        ctk.CTkLabel(frame_cli, text="Bairro:").pack(anchor="w", padx=15, pady=(5,0))
+        self.entry_bairro = ctk.CTkEntry(frame_cli, placeholder_text="Bairro")
+        self.entry_bairro.pack(fill="x", padx=15, pady=(0, 5))
+
+        # Linha 3: Referência
+        ctk.CTkLabel(frame_cli, text="Ponto de Referência:").pack(anchor="w", padx=15, pady=(5,0))
+        self.entry_ref = ctk.CTkEntry(frame_cli, placeholder_text="Ex: Ao lado da padaria")
+        self.entry_ref.pack(fill="x", padx=15, pady=(0, 15))
+        # ------------------------------
+
+        ctk.CTkLabel(frame_cli, text="Selecione o Entregador:").pack(anchor="w", padx=15, pady=(5,0))
         self.var_entregador = ctk.StringVar(value="Entregador da Manhã")
         
         frame_radio = ctk.CTkFrame(frame_cli, fg_color="transparent")
         frame_radio.pack(fill="x", padx=15, pady=5)
         
-        # Opções personalizadas
         ctk.CTkRadioButton(frame_radio, text="Entregador da Manhã", variable=self.var_entregador, value="Entregador da Manhã").pack(anchor="w", pady=2)
         ctk.CTkRadioButton(frame_radio, text="Entregador da Tarde/Noite", variable=self.var_entregador, value="Entregador da Tarde/Noite").pack(anchor="w", pady=2)
         ctk.CTkRadioButton(frame_radio, text="Moto Extra", variable=self.var_entregador, value="Moto Extra").pack(anchor="w", pady=2)
@@ -139,19 +171,16 @@ class App(ctk.CTk):
         self.entry_taxa.pack(fill="x", padx=20, pady=(0, 10))
         self.entry_taxa.bind("<FocusOut>", self.atualizar_totais)
 
-        # Seletor de Pagamento
         ctk.CTkLabel(frame_pag, text="Forma de Pagamento:").pack(anchor="w", padx=20, pady=(10, 0))
         self.combo_pagamento = ctk.CTkComboBox(frame_pag, values=["Dinheiro", "Pix", "Cartão"], command=self.mudou_forma_pagamento)
         self.combo_pagamento.pack(fill="x", padx=20, pady=(0, 10))
         self.combo_pagamento.set("Dinheiro") 
 
-        # Total
         self.lbl_total = ctk.CTkLabel(frame_pag, text="TOTAL: R$ 0.00", font=("Arial", 28, "bold"))
         self.lbl_total.pack(pady=10)
 
         ctk.CTkFrame(frame_pag, height=2, fg_color="gray").pack(fill="x", padx=20, pady=5)
 
-        # Troco
         ctk.CTkLabel(frame_pag, text="Valor em Dinheiro (Para Troco):").pack(anchor="w", padx=20)
         self.entry_troco = ctk.CTkEntry(frame_pag, placeholder_text="Ex: 50.00")
         self.entry_troco.pack(fill="x", padx=20, pady=(0, 10))
@@ -160,7 +189,6 @@ class App(ctk.CTk):
         self.lbl_troco = ctk.CTkLabel(frame_pag, text="Troco: R$ 0.00", text_color="#F1C40F", font=("Arial", 18, "bold"))
         self.lbl_troco.pack(pady=5)
 
-        # Botões
         self.btn_imprimir = ctk.CTkButton(frame_pag, text="FINALIZAR E IMPRIMIR", command=self.finalizar, height=55, fg_color="#2CC985", text_color="black", font=("Arial", 15, "bold"))
         self.btn_imprimir.pack(fill="x", padx=20, pady=(30, 10))
         
@@ -181,12 +209,24 @@ class App(ctk.CTk):
         if not tel: return
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT nome, endereco FROM clientes WHERE telefone = ?", (tel,))
-        res = cursor.fetchone()
+        
+        # Agora buscamos os campos separados
+        try:
+            cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel,))
+            res = cursor.fetchone()
+        except:
+            res = None
+
         conn.close()
+        
         if res:
             self.entry_nome.delete(0, "end"); self.entry_nome.insert(0, res[0])
-            self.txt_end.delete("1.0", "end"); self.txt_end.insert("1.0", res[1])
+            
+            # Preenche os campos de endereço se existirem
+            if res[1]: self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, res[1])
+            if res[2]: self.entry_num.delete(0, "end"); self.entry_num.insert(0, res[2])
+            if res[3]: self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, res[3])
+            if res[4]: self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, res[4])
 
     def formatar_float(self, valor_str):
         try: return float(valor_str.replace(",", ".").strip())
@@ -203,9 +243,7 @@ class App(ctk.CTk):
         return total
 
     def calcular_troco_dinamico(self, event=None):
-        if self.combo_pagamento.get() != "Dinheiro":
-            return
-            
+        if self.combo_pagamento.get() != "Dinheiro": return
         total = self.atualizar_totais(event=None)
         pago = self.formatar_float(self.entry_troco.get())
         if pago > total:
@@ -216,23 +254,25 @@ class App(ctk.CTk):
     def imprimir_cupom_windows(self, texto):
         filename = os.path.abspath("cupom_temp.txt")
         try:
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(texto)
+            with open(filename, "w", encoding="utf-8") as f: f.write(texto)
         except Exception as e:
             messagebox.showerror("Erro", f"Erro arquivo: {e}")
             return
 
         try:
-            printer_name = win32print.GetDefaultPrinter()
             win32api.ShellExecute(0, "print", filename, None, ".", 0)
-        except Exception as e:
-            messagebox.showwarning("Atenção", f"Erro na impressão direta.\nAbrindo manual.")
+        except:
             os.startfile(filename)
 
     def finalizar(self):
         tel = self.entry_tel.get().strip()
         nome = self.entry_nome.get().strip()
-        end = self.txt_end.get("1.0", "end").strip()
+        
+        # Pega os dados dos novos campos
+        rua = self.entry_rua.get().strip()
+        num = self.entry_num.get().strip()
+        bairro = self.entry_bairro.get().strip()
+        ref = self.entry_ref.get().strip()
         
         if not tel or not nome:
             messagebox.showwarning("Campo Vazio", "Preencha Telefone e Nome.")
@@ -253,6 +293,7 @@ class App(ctk.CTk):
             troco_msg = "NAO (JA PAGO)"
             pago_msg = f"{forma_pag.upper()}"
 
+        # Cupom com Endereço Formatado
         cupom = f"""
 --------------------------------
     FARMACIA TOTALPHARMA
@@ -262,8 +303,10 @@ DATA: {datetime.now().strftime('%d/%m/%Y %H:%M')}
 CLI: {nome}
 TEL: {tel}
 --------------------------------
-ENDERECO:
-{end}
+ENDERECO DE ENTREGA:
+{rua}, {num}
+Bairro: {bairro}
+Ref: {ref}
 --------------------------------
 ENTREGADOR: {self.var_entregador.get()}
 --------------------------------
@@ -280,14 +323,28 @@ TROCO:     {troco_msg}
 """
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("INSERT OR REPLACE INTO clientes VALUES (?, ?, ?)", (tel, nome, end))
-        cursor.execute("INSERT INTO pedidos (data, cliente_tel, entregador, valor_total, metodo_pagamento) VALUES (?, ?, ?, ?, ?)", 
-                       (datetime.now().strftime("%Y-%m-%d"), tel, self.var_entregador.get(), total, forma_pag))
-        conn.commit()
+        
+        # Salva o cliente com os novos campos separados
+        # O campo 'endereco' antigo eu removi para não dar confusão
+        try:
+            cursor.execute("""
+                INSERT OR REPLACE INTO clientes (telefone, nome, rua, numero, bairro, referencia)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (tel, nome, rua, num, bairro, ref))
+            
+            cursor.execute("""
+                INSERT INTO pedidos (data, cliente_tel, entregador, valor_total, metodo_pagamento) 
+                VALUES (?, ?, ?, ?, ?)
+            """, (datetime.now().strftime("%Y-%m-%d"), tel, self.var_entregador.get(), total, forma_pag))
+            conn.commit()
+        except Exception as e:
+            messagebox.showerror("Erro BD", str(e))
+        
         conn.close()
 
         self.imprimir_cupom_windows(cupom)
         
+        # Limpa tudo
         self.entry_val.delete(0, "end"); self.entry_taxa.delete(0, "end"); self.entry_troco.delete(0, "end")
         self.lbl_total.configure(text="TOTAL: R$ 0.00")
         self.lbl_troco.configure(text="Troco: R$ 0.00")
@@ -313,8 +370,7 @@ TROCO:     {troco_msg}
             for tipo, val in cursor.fetchall():
                 tipo_nome = tipo if tipo else "Desconhecido"
                 msg += f"{tipo_nome}: R$ {val:.2f}\n"
-        except:
-            pass
+        except: pass
 
         conn.close()
         messagebox.showinfo("Relatório", msg)
