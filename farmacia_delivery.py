@@ -9,6 +9,7 @@ import csv
 import webbrowser 
 import urllib.parse 
 import shutil
+import unicodedata # <--- BIBLIOTECA PARA LIMPAR ACENTOS
 
 # Bibliotecas de impressão do Windows
 import win32print
@@ -22,7 +23,7 @@ LARGURA_PAPEL = 48
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v5.8' 
+        myappid = 'totalpharma.delivery.pdv.v5.9' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -153,7 +154,6 @@ class App(ctk.CTk):
         ctk.CTkRadioButton(frame_radio, text="Entregador da Tarde/Noite", variable=self.var_entregador, value="Entregador da Tarde/Noite").pack(anchor="w", pady=2)
         ctk.CTkRadioButton(frame_radio, text="Moto Extra", variable=self.var_entregador, value="Moto Extra").pack(anchor="w", pady=2)
 
-        # --- NOVO BOTÃO: SALVAR APENAS CADASTRO ---
         self.btn_salvar_cli = ctk.CTkButton(frame_cli, text="💾 SALVAR DADOS DO CLIENTE (SEM IMPRIMIR)", 
                                             command=self.salvar_apenas_cliente, 
                                             fg_color="#2980B9", height=35)
@@ -215,20 +215,16 @@ class App(ctk.CTk):
         self.btn_backup = ctk.CTkButton(frame_pag, text="💾 FAZER BACKUP SEGURANÇA", command=self.fazer_backup_seguranca, fg_color="#8E44AD", height=30)
         self.btn_backup.pack(fill="x", padx=20, pady=(10, 20))
 
-    # ---------------- LOGICA DE SALVAR APENAS CLIENTE ----------------
     def salvar_apenas_cliente(self):
         tel_limpo = self.limpar_telefone(self.entry_tel.get())
         nome = self.entry_nome.get().strip()
-        
         if not tel_limpo or not nome:
             messagebox.showwarning("Aviso", "Para cadastrar, preencha pelo menos Telefone e Nome.")
             return
-
         rua = self.entry_rua.get().strip()
         num = self.entry_num.get().strip()
         bairro = self.entry_bairro.get().strip()
         ref = self.entry_ref.get().strip()
-
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         try:
@@ -238,10 +234,8 @@ class App(ctk.CTk):
             messagebox.showinfo("Sucesso", f"Cliente {nome} salvo/atualizado com sucesso!")
         except Exception as e:
             messagebox.showerror("Erro BD", str(e))
-        finally:
-            conn.close()
+        finally: conn.close()
 
-    # ---------------- LÓGICA DE BACKUP ----------------
     def fazer_backup_seguranca(self):
         try:
             db_origem = DB_PATH
@@ -257,7 +251,7 @@ class App(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Erro Backup", f"Não foi possível fazer o backup:\n{e}")
 
-    # ---------------- AUXILIARES ----------------
+    # ---------------- AUXILIARES DE FORMATAÇÃO ----------------
     def limpar_telefone(self, tel):
         numeros = "".join(filter(str.isdigit, tel))
         tam = len(numeros)
@@ -273,6 +267,15 @@ class App(ctk.CTk):
     def formatar_float(self, valor_str):
         try: return float(valor_str.replace(",", ".").strip())
         except: return 0.0
+
+    def remover_acentos(self, texto):
+        """Remove acentos para evitar erros na impressora térmica (ç -> c, ã -> a)"""
+        if not texto: return ""
+        try:
+            # Normaliza para KD (separa acentos) e filtra apenas caracteres base (ASCII)
+            return unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
+        except:
+            return texto
 
     def toggle_lembrete(self):
         if self.chk_lembrete.get() == 1:
@@ -343,7 +346,9 @@ class App(ctk.CTk):
     def imprimir_termica_raw(self, texto_cupom):
         printer_name = win32print.GetDefaultPrinter()
         
-        # Códigos ESC/POS
+        # Limpa acentos para garantir compatibilidade total
+        texto_limpo = self.remover_acentos(texto_cupom)
+        
         ESC = b'\x1b'; GS = b'\x1d'
         INIT = ESC + b'@'; CENTER = ESC + b'a\x01'; LEFT = ESC + b'a\x00'
         BOLD_ON = ESC + b'E\x01'; BOLD_OFF = ESC + b'E\x00'
@@ -357,7 +362,6 @@ class App(ctk.CTk):
                 try:
                     win32print.StartPagePrinter(hPrinter)
                     
-                    # 1. CABEÇALHO (Centralizado + Negrito)
                     buffer = INIT + CENTER + BOLD_ON
                     buffer += bytes("FARMACIA TOTALPHARMA\n", "latin1", "replace")
                     buffer += BOLD_OFF
@@ -366,11 +370,10 @@ class App(ctk.CTk):
                     buffer += bytes(f"{dt_hora}\n", "latin1")
                     buffer += bytes("--------------------------------\n", "latin1")
                     
-                    # 2. CORPO
                     buffer += LEFT 
-                    buffer += bytes(texto_cupom, "latin1", "replace")
+                    # Usa o texto limpo sem acentos
+                    buffer += bytes(texto_limpo, "latin1", "replace")
                     
-                    # 3. RODAPÉ
                     buffer += CENTER + bytes("\nObrigado pela preferencia!\n", "latin1")
                     buffer += bytes("--------------------------------\n", "latin1")
                     buffer += b"\n\n\n" + CUT 
@@ -419,9 +422,11 @@ class App(ctk.CTk):
             pago_msg = f"R$ {total:.2f}"
 
         tel_fmt = self.formatar_telefone_visual(tel_limpo)
-        
         rua_full = f"{rua}, {num}"
         bairro_full = f"Bairro: {bairro}"
+        
+        # Ajuste: Aumenta um pouco a largura no textwrap para evitar quebras desnecessárias
+        # Já que removemos os acentos, o texto fica mais "previsível"
         rua_wrap = textwrap.fill(rua_full, width=LARGURA_PAPEL)
         bairro_wrap = textwrap.fill(bairro_full, width=LARGURA_PAPEL)
         ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
