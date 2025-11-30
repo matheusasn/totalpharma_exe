@@ -8,23 +8,21 @@ import textwrap
 import csv 
 import webbrowser 
 import urllib.parse 
+import shutil # <--- BIBLIOTECA PARA COPIAR ARQUIVOS (BACKUP)
 
 # Bibliotecas de impressão do Windows
 import win32print
-
 import ctypes
 
 # -------------- CONFIGURAÇÕES --------------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
-DDD_PADRAO = "87" 
-
-# Largura para 80mm (geralmente 48 colunas). Se for 58mm, mude para 32.
+DDD_PADRAO = "83" 
 LARGURA_PAPEL = 48 
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v5.4' 
+        myappid = 'totalpharma.delivery.pdv.v5.5' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -94,7 +92,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("TotalPharma - PDV Profissional")
-        self.geometry("950x750")
+        self.geometry("950x780") # Aumentei um pouco para caber o novo botão
         
         try:
             if getattr(sys, 'frozen', False):
@@ -199,6 +197,7 @@ class App(ctk.CTk):
         self.btn_imprimir = ctk.CTkButton(frame_pag, text="FINALIZAR E IMPRIMIR", command=self.finalizar, height=55, fg_color="#2CC985", text_color="black", font=("Arial", 15, "bold"))
         self.btn_imprimir.pack(fill="x", padx=20, pady=(15, 10))
         
+        # --- BOTÕES DE AÇÃO ---
         frame_botoes = ctk.CTkFrame(frame_pag, fg_color="transparent")
         frame_botoes.pack(fill="x", padx=20)
         self.btn_limpar = ctk.CTkButton(frame_botoes, text="LIMPAR", command=self.limpar_tela, fg_color="#C0392B", width=80)
@@ -207,6 +206,38 @@ class App(ctk.CTk):
         self.btn_relatorio.pack(side="left", fill="x", expand=True, padx=(5, 5))
         self.btn_alertas = ctk.CTkButton(frame_botoes, text="🔔 RECOMPRAS", command=self.ver_alertas_recompra, fg_color="#555", width=80)
         self.btn_alertas.pack(side="right", fill="x", expand=True, padx=(5, 0))
+
+        # --- NOVO BOTÃO DE BACKUP ---
+        self.btn_backup = ctk.CTkButton(frame_pag, text="💾 FAZER BACKUP SEGURANÇA", command=self.fazer_backup_seguranca, fg_color="#8E44AD", height=30)
+        self.btn_backup.pack(fill="x", padx=20, pady=(10, 20))
+
+    # ---------------- LÓGICA DE BACKUP ----------------
+    def fazer_backup_seguranca(self):
+        try:
+            # Caminho original do DB
+            db_origem = DB_PATH
+            if not os.path.exists(db_origem):
+                messagebox.showerror("Erro", "Banco de dados não encontrado.")
+                return
+
+            # Data de hoje para o nome do arquivo
+            hoje_str = datetime.now().strftime("%Y-%m-%d")
+            nome_sugerido = f"backup_totalpharma_{hoje_str}.db"
+
+            # Pergunta onde salvar
+            destino = filedialog.asksaveasfilename(
+                title="Salvar Backup de Segurança",
+                initialfile=nome_sugerido,
+                defaultextension=".db",
+                filetypes=[("Arquivo de Banco de Dados", "*.db")]
+            )
+
+            if destino:
+                shutil.copy2(db_origem, destino)
+                messagebox.showinfo("Sucesso", f"Backup realizado com sucesso!\n\nSalvo em:\n{destino}")
+        
+        except Exception as e:
+            messagebox.showerror("Erro Backup", f"Não foi possível fazer o backup:\n{e}")
 
     # ---------------- AUXILIARES ----------------
     def limpar_telefone(self, tel):
@@ -290,24 +321,12 @@ class App(ctk.CTk):
         if pago > total: self.lbl_troco.configure(text=f"TROCO: R$ {pago - total:.2f}")
         else: self.lbl_troco.configure(text="Troco: R$ 0.00")
 
-    # --- IMPRESSÃO TÉRMICA PROFISSIONAL (RAW) ---
     def imprimir_termica_raw(self, texto_cupom):
         printer_name = win32print.GetDefaultPrinter()
-        
-        # Códigos ESC/POS
-        ESC = b'\x1b'
-        GS = b'\x1d'
-        INIT = ESC + b'@'
-        CENTER = ESC + b'a\x01'
-        LEFT = ESC + b'a\x00'
-        BOLD_ON = ESC + b'E\x01'
-        BOLD_OFF = ESC + b'E\x00'
-        
-        # Modo de fonte (O segredo do tamanho)
-        # \x00 = Normal, \x10 = Altura Dupla, \x20 = Largura Dupla, \x30 = Ambos
-        DOUBLE_HEIGHT = ESC + b'!\x10' 
-        NORMAL = ESC + b'!\x00'
-        
+        ESC = b'\x1b'; GS = b'\x1d'
+        INIT = ESC + b'@'; CENTER = ESC + b'a\x01'; LEFT = ESC + b'a\x00'
+        BOLD_ON = ESC + b'E\x01'; BOLD_OFF = ESC + b'E\x00'
+        DOUBLE_HEIGHT = ESC + b'!\x10'; NORMAL = ESC + b'!\x00'
         CUT = GS + b'V\x00'
         
         try:
@@ -316,50 +335,35 @@ class App(ctk.CTk):
                 hJob = win32print.StartDocPrinter(hPrinter, 1, ("Cupom Farmacia", None, "RAW"))
                 try:
                     win32print.StartPagePrinter(hPrinter)
-                    
-                    # 1. CABEÇALHO (Centralizado + Negrito + Altura Dupla)
                     buffer = INIT + CENTER + BOLD_ON + DOUBLE_HEIGHT
                     buffer += bytes("FARMACIA TOTALPHARMA\n", "latin1", "replace")
-                    
-                    # Volta para fonte normal (sem altura dupla) mas mantem negrito
                     buffer += NORMAL + BOLD_ON
                     dt_hora = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    buffer += bytes(f"{dt_hora}\n", "latin1") # Data abaixo do nome
-                    
+                    buffer += bytes(f"{dt_hora}\n", "latin1")
                     buffer += bytes("--------------------------------\n", "latin1")
-                    buffer += BOLD_OFF + LEFT # Alinha esquerda para o corpo
-                    
-                    # 2. CORPO (Endereço, etc)
+                    buffer += BOLD_OFF + LEFT 
                     buffer += bytes(texto_cupom, "latin1", "replace")
-                    
-                    # 3. RODAPÉ
                     buffer += CENTER + bytes("\nObrigado pela preferencia!\n", "latin1")
                     buffer += bytes("--------------------------------\n", "latin1")
                     buffer += b"\n\n\n" + CUT 
-                    
                     win32print.WritePrinter(hPrinter, buffer)
                     win32print.EndPagePrinter(hPrinter)
-                finally:
-                    win32print.EndDocPrinter(hPrinter)
-            finally:
-                win32print.ClosePrinter(hPrinter)
+                finally: win32print.EndDocPrinter(hPrinter)
+            finally: win32print.ClosePrinter(hPrinter)
         except Exception as e:
             messagebox.showerror("Erro Impressão", f"Falha ao imprimir:\n{e}")
 
     def finalizar(self):
         tel_limpo = self.limpar_telefone(self.entry_tel.get())
         nome = self.entry_nome.get().strip()
-        
         if not tel_limpo or not nome:
             messagebox.showwarning("Aviso", "Preencha Telefone e Nome.")
             return
-
         rua = self.entry_rua.get().strip()
         num = self.entry_num.get().strip()
         bairro = self.entry_bairro.get().strip()
         ref = self.entry_ref.get().strip()
         total = self.atualizar_totais()
-        
         if total <= 0:
             messagebox.showwarning("Aviso", "Valor total zerado.")
             return
@@ -385,41 +389,24 @@ class App(ctk.CTk):
             troco_msg = "NAO (JA PAGO)"
             pago_msg = f"R$ {total:.2f}"
 
-        # --- MONTAGEM DO CUPOM ---
         tel_fmt = self.formatar_telefone_visual(tel_limpo)
-        
-        # Quebra de linha separada para Rua e Bairro (Correção solicitada)
-        rua_full = f"{rua}, {num}"
-        bairro_full = f"Bairro: {bairro}"
-        
+        rua_full = f"{rua}, {num}"; bairro_full = f"Bairro: {bairro}"
         rua_wrap = textwrap.fill(rua_full, width=LARGURA_PAPEL)
         bairro_wrap = textwrap.fill(bairro_full, width=LARGURA_PAPEL)
         ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
 
-        texto_cupom = f"CLI: {nome}\n"
-        texto_cupom += f"TEL: {tel_fmt}\n"
-        texto_cupom += "-" * 32 + "\n"
-        
-        # Aqui garantimos que o Bairro fique na linha de baixo
+        texto_cupom = f"CLI: {nome}\nTEL: {tel_fmt}\n" + "-" * 32 + "\n"
         texto_cupom += f"ENTREGA:\n{rua_wrap}\n{bairro_wrap}\n\n"
-        
         if ref: texto_cupom += f"{ref_wrap}\n"
-        texto_cupom += "-" * 32 + "\n"
-        texto_cupom += f"MOTOBOY: {self.var_entregador.get()}\n"
-        texto_cupom += "-" * 32 + "\n"
+        texto_cupom += "-" * 32 + "\n" + f"MOTOBOY: {self.var_entregador.get()}\n" + "-" * 32 + "\n"
         
         v_prod = self.formatar_float(self.entry_val.get())
         v_taxa = self.formatar_float(self.entry_taxa.get())
-        
-        # Formatação Manual de Colunas para alinhar valores
-        # Ajuste os espaços se sua impressora for diferente
         texto_cupom += f"Subtotal:{' '*(22-len(f'R$ {v_prod:.2f}'))}R$ {v_prod:.2f}\n"
         texto_cupom += f"Taxa:{' '*(26-len(f'R$ {v_taxa:.2f}'))}R$ {v_taxa:.2f}\n"
         texto_cupom += f"TOTAL:{' '*(25-len(f'R$ {total:.2f}'))}R$ {total:.2f}\n"
         texto_cupom += "-" * 32 + "\n"
-        texto_cupom += f"PAGAMENTO: {forma_pag.upper()}\n"
-        texto_cupom += f"Valor Pago: {pago_msg}\n"
-        texto_cupom += f"TROCO: {troco_msg}\n"
+        texto_cupom += f"PAGAMENTO: {forma_pag.upper()}\nValor Pago: {pago_msg}\nTROCO: {troco_msg}\n"
 
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
