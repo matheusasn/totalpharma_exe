@@ -9,10 +9,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4  # <--- Atualizado para v4
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v5 # <--- Atualizado para v5
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
@@ -23,10 +23,11 @@ jobs:
 
     - name: Build with PyInstaller
       run: |
-        pyinstaller main.py --name FarmaciaApp --onefile --windowed --noconsole --collect-all customtkinter
+        # AQUI ESTAVA O ERRO: Mudamos de main.py para farmacia_delivery.py
+        pyinstaller farmacia_delivery.py --name FarmaciaApp --onefile --windowed --noconsole --collect-all customtkinter
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v4  # <--- AQUI ERA O ERRO (Atualizado para v4)
+      uses: actions/upload-artifact@v4
       with:
         name: FarmaciaApp_EXE
         path: dist/FarmaciaApp.exe
