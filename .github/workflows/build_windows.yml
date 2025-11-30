@@ -23,8 +23,8 @@ jobs:
 
     - name: Build with PyInstaller
       run: |
-        # AQUI ESTAVA O ERRO: Mudamos de main.py para farmacia_delivery.py
-        pyinstaller farmacia_delivery.py --name FarmaciaApp --onefile --windowed --noconsole --collect-all customtkinter
+        # Adicionamos --icon=farmacia.ico aqui
+        pyinstaller farmacia_delivery.py --name FarmaciaApp --onefile --windowed --noconsole --icon=farmacia.ico --collect-all customtkinter
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
