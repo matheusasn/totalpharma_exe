@@ -1,11 +1,13 @@
 import customtkinter as ctk
 import sqlite3
 from tkinter import messagebox, filedialog
-from datetime import datetime, timedelta # <--- Timedelta para calcular datas
+from datetime import datetime, timedelta
 import os
 import sys
 import textwrap
 import csv 
+import webbrowser # <--- ABRIR NAVEGADOR
+import urllib.parse # <--- CODIFICAR TEXTO PRO ZAP
 
 import win32api
 import win32print
@@ -18,7 +20,7 @@ DDD_PADRAO = "83"
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v5.0' 
+        myappid = 'totalpharma.delivery.pdv.v5.1' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -39,7 +41,6 @@ def init_db():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # Tabelas Existentes
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS clientes (
                 telefone TEXT PRIMARY KEY,
@@ -61,8 +62,6 @@ def init_db():
                 FOREIGN KEY(cliente_tel) REFERENCES clientes(telefone)
             )
         """)
-
-        # --- NOVA TABELA DE LEMBRETES ---
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS lembretes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,15 +72,12 @@ def init_db():
                 FOREIGN KEY(cliente_tel) REFERENCES clientes(telefone)
             )
         """)
-
-        # Migrações de colunas antigas (caso precise)
         colunas_novas = ["rua", "numero", "bairro", "referencia", "metodo_pagamento"]
         for col in colunas_novas:
             try:
                 tabela = "pedidos" if col == "metodo_pagamento" else "clientes"
                 cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {col} TEXT")
             except: pass
-            
         conn.commit()
         conn.close()
         return db_path
@@ -94,7 +90,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("TotalPharma - PDV Inteligente")
-        self.geometry("950x750") # Um pouco maior
+        self.geometry("950x750")
         
         try:
             if getattr(sys, 'frozen', False):
@@ -113,8 +109,6 @@ class App(ctk.CTk):
 
         self.criar_coluna_cliente()
         self.criar_coluna_pagamento()
-        
-        # Verifica se tem avisos assim que abre
         self.verificar_avisos_hoje()
 
     def criar_coluna_cliente(self):
@@ -183,17 +177,13 @@ class App(ctk.CTk):
 
         ctk.CTkFrame(frame_pag, height=2, fg_color="gray").pack(fill="x", padx=20, pady=5)
 
-        # --- ÁREA DE FIDELIZAÇÃO (LEMBRETE) ---
+        # --- FIDELIZAÇÃO ---
         self.frame_fidelidade = ctk.CTkFrame(frame_pag, fg_color="#333333")
         self.frame_fidelidade.pack(fill="x", padx=20, pady=5)
-        
         self.chk_lembrete = ctk.CTkCheckBox(self.frame_fidelidade, text="Agendar Lembrete (Remédio Controlado)", command=self.toggle_lembrete)
         self.chk_lembrete.pack(pady=5, padx=10, anchor="w")
-        
         self.entry_med_nome = ctk.CTkEntry(self.frame_fidelidade, placeholder_text="Nome do Remédio")
         self.entry_dias_duracao = ctk.CTkEntry(self.frame_fidelidade, placeholder_text="Dura quantos dias?", width=120)
-        # (Campos iniciam ocultos até marcar o checkbox)
-        # ----------------------------------------
 
         ctk.CTkLabel(frame_pag, text="Valor em Dinheiro (Para Troco):").pack(anchor="w", padx=20)
         self.entry_troco = ctk.CTkEntry(frame_pag, placeholder_text="Ex: 50.00")
@@ -206,20 +196,16 @@ class App(ctk.CTk):
         self.btn_imprimir = ctk.CTkButton(frame_pag, text="FINALIZAR E IMPRIMIR", command=self.finalizar, height=55, fg_color="#2CC985", text_color="black", font=("Arial", 15, "bold"))
         self.btn_imprimir.pack(fill="x", padx=20, pady=(15, 10))
         
-        # Botoes Extras
         frame_botoes = ctk.CTkFrame(frame_pag, fg_color="transparent")
         frame_botoes.pack(fill="x", padx=20)
         self.btn_limpar = ctk.CTkButton(frame_botoes, text="LIMPAR", command=self.limpar_tela, fg_color="#C0392B", width=80)
         self.btn_limpar.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.btn_relatorio = ctk.CTkButton(frame_botoes, text="RELATÓRIO", command=self.abrir_janela_relatorio, fg_color="#555", width=80)
         self.btn_relatorio.pack(side="left", fill="x", expand=True, padx=(5, 5))
-        
-        # --- BOTÃO DE ALERTAS (Recompras) ---
         self.btn_alertas = ctk.CTkButton(frame_botoes, text="🔔 RECOMPRAS", command=self.ver_alertas_recompra, fg_color="#555", width=80)
         self.btn_alertas.pack(side="right", fill="x", expand=True, padx=(5, 0))
 
-
-    # ---------------- FORMATACAO ----------------
+    # ---------------- LÓGICA GERAL ----------------
     def limpar_telefone(self, tel):
         numeros = "".join(filter(str.isdigit, tel))
         tam = len(numeros)
@@ -236,8 +222,7 @@ class App(ctk.CTk):
     def formatar_float(self, valor_str):
         try: return float(valor_str.replace(",", ".").strip())
         except: return 0.0
-    
-    # ---------------- LÓGICA GERAL ----------------
+
     def toggle_lembrete(self):
         if self.chk_lembrete.get() == 1:
             self.entry_med_nome.pack(fill="x", padx=10, pady=(0,5))
@@ -255,13 +240,8 @@ class App(ctk.CTk):
         self.lbl_total.configure(text="TOTAL: R$ 0.00"); self.lbl_troco.configure(text="Troco: R$ 0.00")
         self.combo_pagamento.set("Dinheiro"); self.entry_troco.configure(state="normal")
         self.var_entregador.set("Entregador da Manhã")
-        
-        # Limpa lembrete
-        self.chk_lembrete.deselect()
-        self.toggle_lembrete()
-        self.entry_med_nome.delete(0, "end")
-        self.entry_dias_duracao.delete(0, "end")
-        
+        self.chk_lembrete.deselect(); self.toggle_lembrete()
+        self.entry_med_nome.delete(0, "end"); self.entry_dias_duracao.delete(0, "end")
         self.entry_tel.focus_set()
 
     def mudou_forma_pagamento(self, escolha):
@@ -338,7 +318,6 @@ class App(ctk.CTk):
             messagebox.showwarning("Valor Zerado", "Total do pedido zerado.")
             return
 
-        # LOGICA DO LEMBRETE
         salvar_lembrete = False
         data_aviso = None
         med_nome = ""
@@ -348,8 +327,6 @@ class App(ctk.CTk):
             if not med_nome or not dias_duracao.isdigit():
                 messagebox.showwarning("Lembrete Inválido", "Preencha o nome do remédio e os dias corretamente.")
                 return
-            
-            # Calcula a data do aviso: Hoje + Dias - 3
             hoje_dt = datetime.now()
             dias = int(dias_duracao)
             data_aviso_dt = hoje_dt + timedelta(days=dias-3)
@@ -413,14 +390,11 @@ TROCO:               {troco_msg:>13}
                 INSERT INTO pedidos (data, cliente_tel, entregador, valor_total, metodo_pagamento) 
                 VALUES (?, ?, ?, ?, ?)
             """, (datetime.now().strftime("%Y-%m-%d"), tel_limpo, self.var_entregador.get(), total, forma_pag))
-            
-            # Salva o lembrete se marcado
             if salvar_lembrete:
                 cursor.execute("""
                     INSERT INTO lembretes (cliente_tel, medicamento, data_aviso, status)
                     VALUES (?, ?, ?, 'PENDENTE')
                 """, (tel_limpo, med_nome, data_aviso))
-
             conn.commit()
         except Exception as e:
             messagebox.showerror("Erro BD", str(e))
@@ -434,14 +408,13 @@ TROCO:               {troco_msg:>13}
         hoje = datetime.now().strftime("%Y-%m-%d")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        # Busca lembretes de hoje ou atrasados que ainda estão pendentes
         cursor.execute("SELECT count(*) FROM lembretes WHERE data_aviso <= ? AND status = 'PENDENTE'", (hoje,))
         qtd = cursor.fetchone()[0]
         conn.close()
         
         if qtd > 0:
-            self.btn_alertas.configure(fg_color="#E74C3C", text=f"🔔 {qtd} CLIENTES!") # Botão fica vermelho
-            messagebox.showinfo("Fidelização", f"ATENÇÃO: Existem {qtd} clientes precisando repor remédio hoje!\nClique no botão 'RECOMPRAS' para ver.")
+            self.btn_alertas.configure(fg_color="#E74C3C", text=f"🔔 {qtd} CLIENTES!") 
+            messagebox.showinfo("Fidelização", f"ATENÇÃO: {qtd} clientes precisam repor remédio hoje!")
         else:
             self.btn_alertas.configure(fg_color="#555", text="🔔 RECOMPRAS")
 
@@ -457,16 +430,16 @@ TROCO:               {troco_msg:>13}
             WHERE l.data_aviso <= ? AND l.status = 'PENDENTE'
         """, (hoje,))
         dados = cursor.fetchall()
-        
+        conn.close()
+
         if not dados:
             messagebox.showinfo("Tudo Certo", "Nenhum cliente para ligar hoje.")
-            conn.close()
             return
             
-        # Janela de Gestão de Ligações
         top = ctk.CTkToplevel(self)
         top.title("Gestão de Recompras - Ligar para Clientes")
-        top.geometry("600x400")
+        top.geometry("700x500") # Aumentei um pouco a largura
+        top.attributes("-topmost", True)
         
         scroll = ctk.CTkScrollableFrame(top)
         scroll.pack(fill="both", expand=True, padx=10, pady=10)
@@ -480,12 +453,35 @@ TROCO:               {troco_msg:>13}
             lbl_info = ctk.CTkLabel(card, text=f"{nome} ({tel_fmt})\nRemédio: {med}", font=("Arial", 14), anchor="w", justify="left")
             lbl_info.pack(side="left", padx=10, pady=10)
             
-            # Botão "JÁ LIGUEI" (Dá baixa no lembrete)
-            btn_ok = ctk.CTkButton(card, text="✅ JÁ LIGUEI", width=100, fg_color="#27AE60", 
+            # --- BOTÃO WHATSAPP ---
+            btn_zap = ctk.CTkButton(card, text="💬 WHATSAPP", width=120, fg_color="#25D366", 
+                                    text_color="white",
+                                    command=lambda n=nome, t=tel, m=med: self.abrir_whatsapp_recompra(n, t, m))
+            btn_zap.pack(side="right", padx=5)
+
+            # Botão JÁ LIGUEI
+            btn_ok = ctk.CTkButton(card, text="✅ JÁ RESOLVI", width=120, fg_color="#27AE60", 
                                    command=lambda i=id_lembrete, t=top: self.dar_baixa_lembrete(i, t))
-            btn_ok.pack(side="right", padx=10)
+            btn_ok.pack(side="right", padx=5)
+
+    # --- FUNÇÃO NOVA: ABRIR WHATSAPP AUTOMÁTICO ---
+    def abrir_whatsapp_recompra(self, nome, telefone, remedio):
+        # 1. Garante que tem código do país (Brasil = 55)
+        # O telefone no banco já vem com DDD (Ex: 83999998888)
+        # O WhatsApp precisa de 55 + DDD + Numero
+        numeros = "".join(filter(str.isdigit, telefone))
+        if len(numeros) <= 11: # Se não tem o 55 ainda
+            numeros = "55" + numeros
+            
+        # 2. Cria a mensagem formatada
+        msg = f"Olá {nome}, tudo bem? 👋\n\nAqui é da *Farmácia TotalPharma*.\n\nVi no nosso sistema que seu *{remedio}* está perto de acabar.\n\nGostaria de já pedir a reposição para não interromper o tratamento? A entrega é grátis! 🛵💊"
         
-        conn.close()
+        # 3. Codifica para URL (Troca espaço por %20, etc)
+        msg_encoded = urllib.parse.quote(msg)
+        
+        # 4. Gera o link e abre
+        link = f"https://wa.me/{numeros}?text={msg_encoded}"
+        webbrowser.open(link)
 
     def dar_baixa_lembrete(self, id_lembrete, janela):
         conn = sqlite3.connect(DB_PATH)
@@ -494,13 +490,13 @@ TROCO:               {troco_msg:>13}
         conn.commit()
         conn.close()
         
-        janela.destroy() # Fecha a janela para atualizar
-        self.ver_alertas_recompra() # Reabre atualizada
-        self.verificar_avisos_hoje() # Atualiza o botão principal
+        janela.destroy()
+        self.ver_alertas_recompra()
+        self.verificar_avisos_hoje()
 
-    # --- RELATÓRIOS ---
     def abrir_janela_relatorio(self):
         hoje = datetime.now().strftime("%Y-%m-%d")
+        
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("SELECT count(*), sum(valor_total) FROM pedidos WHERE data = ?", (hoje,))
