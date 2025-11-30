@@ -1,11 +1,11 @@
 import customtkinter as ctk
 import sqlite3
-from tkinter import messagebox
+from tkinter import messagebox, filedialog # <--- ADICIONEI FILEDIALOG AQUI
 from datetime import datetime
 import os
 import sys
 import textwrap
-import csv # <--- Nova biblioteca para gerar Excel/CSV
+import csv 
 
 import win32api
 import win32print
@@ -18,7 +18,7 @@ DDD_PADRAO = "83"
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v4.0' 
+        myappid = 'totalpharma.delivery.pdv.v4.1' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -183,6 +183,7 @@ class App(ctk.CTk):
 
         self.btn_relatorio = ctk.CTkButton(frame_botoes, text="RELATÓRIO DIA", command=self.abrir_janela_relatorio, fg_color="#555", width=120)
         self.btn_relatorio.pack(side="right", fill="x", expand=True, padx=(5, 0))
+
 
     # ---------------- FORMATACAO ----------------
     def limpar_telefone(self, tel):
@@ -355,44 +356,31 @@ TROCO:               {troco_msg:>13}
         self.imprimir_cupom_windows(cupom)
         self.limpar_tela()
 
-    # ---------------- NOVO RELATÓRIO AVANÇADO ----------------
     def abrir_janela_relatorio(self):
         hoje = datetime.now().strftime("%Y-%m-%d")
         
-        # Conecta no BD para pegar dados
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        
-        # 1. Total Geral
         cursor.execute("SELECT count(*), sum(valor_total) FROM pedidos WHERE data = ?", (hoje,))
         qtd_total, receita_total = cursor.fetchone()
         receita_total = receita_total if receita_total else 0.0
         ticket_medio = receita_total / qtd_total if qtd_total > 0 else 0.0
-
-        # 2. Entregadores
         cursor.execute("SELECT entregador, count(*) FROM pedidos WHERE data = ? GROUP BY entregador", (hoje,))
-        dados_entregadores = cursor.fetchall() # Lista de (Nome, Qtd)
-
-        # 3. Pagamentos
+        dados_entregadores = cursor.fetchall()
         cursor.execute("SELECT metodo_pagamento, sum(valor_total) FROM pedidos WHERE data = ? GROUP BY metodo_pagamento", (hoje,))
-        dados_pagamentos = cursor.fetchall() # Lista de (Tipo, Valor)
-
+        dados_pagamentos = cursor.fetchall()
         conn.close()
 
-        # --- CRIAÇÃO DA JANELA POP-UP ---
         top = ctk.CTkToplevel(self)
         top.title(f"Relatório do Dia ({datetime.now().strftime('%d/%m')})")
         top.geometry("400x550")
-        top.attributes("-topmost", True) # Força ficar na frente
+        top.attributes("-topmost", True) 
 
-        # Cabeçalho
         ctk.CTkLabel(top, text="RESUMO FINANCEIRO", font=("Arial", 16, "bold"), text_color="#2CC985").pack(pady=(15,5))
         ctk.CTkLabel(top, text=f"Faturamento: R$ {receita_total:.2f}", font=("Arial", 20, "bold")).pack()
         ctk.CTkLabel(top, text=f"Total Entregas: {qtd_total}  |  Ticket Médio: R$ {ticket_medio:.2f}").pack(pady=5)
-
         ctk.CTkFrame(top, height=2, fg_color="gray").pack(fill="x", padx=20, pady=10)
 
-        # Seção Entregadores
         ctk.CTkLabel(top, text="POR ENTREGADOR (Qtd)", font=("Arial", 14, "bold")).pack()
         if not dados_entregadores:
             ctk.CTkLabel(top, text="Nenhuma entrega hoje.").pack()
@@ -402,7 +390,6 @@ TROCO:               {troco_msg:>13}
 
         ctk.CTkFrame(top, height=2, fg_color="gray").pack(fill="x", padx=20, pady=10)
 
-        # Seção Pagamentos
         ctk.CTkLabel(top, text="POR PAGAMENTO (R$)", font=("Arial", 14, "bold")).pack()
         if not dados_pagamentos:
             ctk.CTkLabel(top, text="Nenhum pagamento hoje.").pack()
@@ -410,17 +397,21 @@ TROCO:               {troco_msg:>13}
             for tipo, val in dados_pagamentos:
                 tipo_str = tipo if tipo else "Outros"
                 ctk.CTkLabel(top, text=f"{tipo_str}: R$ {val:.2f}").pack(anchor="w", padx=40)
-
+        
         ctk.CTkFrame(top, height=2, fg_color="gray").pack(fill="x", padx=20, pady=20)
-
-        # Botão Exportar Excel (CSV)
         ctk.CTkButton(top, text="SALVAR EM EXCEL (CSV)", command=lambda: self.exportar_csv(hoje), fg_color="#2980B9").pack(fill="x", padx=20, pady=10)
 
+    # --- CORREÇÃO AQUI: USA DIÁLOGO PARA SALVAR ---
     def exportar_csv(self, data_hoje):
         try:
-            # Salva na Área de Trabalho para ser fácil achar
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-            filename = os.path.join(desktop, f"Relatorio_Farmacia_{data_hoje}.csv")
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("Arquivo CSV", "*.csv")],
+                initialfile=f"Relatorio_{data_hoje}.csv",
+                title="Salvar Relatório"
+            )
+            
+            if not filename: return # Usuário cancelou
 
             conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
@@ -437,17 +428,15 @@ TROCO:               {troco_msg:>13}
                 messagebox.showinfo("Vazio", "Não há dados para exportar hoje.")
                 return
 
-            # Escreve CSV
             with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
-                writer = csv.writer(f, delimiter=';') # Ponto e virgula é melhor pro Excel Brasil
+                writer = csv.writer(f, delimiter=';') 
                 writer.writerow(["ID", "Data", "Cliente", "Entregador", "Valor (R$)", "Pagamento"])
                 for linha in dados:
-                    # Formata o valor float para string com vírgula (padrão BR)
                     linha_fmt = list(linha)
                     linha_fmt[4] = f"{linha[4]:.2f}".replace(".", ",")
                     writer.writerow(linha_fmt)
             
-            messagebox.showinfo("Sucesso", f"Relatório salvo na Área de Trabalho!\n\nArquivo: {os.path.basename(filename)}")
+            messagebox.showinfo("Sucesso", "Relatório salvo com sucesso!")
             
         except Exception as e:
             messagebox.showerror("Erro Exportação", str(e))
