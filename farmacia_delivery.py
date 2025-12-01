@@ -23,7 +23,7 @@ LARGURA_PAPEL = 48
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v7.1' 
+        myappid = 'totalpharma.delivery.pdv.v7.2' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -38,12 +38,14 @@ def get_app_path():
     return pasta_app
 
 def init_db():
+    """Inicializa e REPARA o banco de dados se necessário"""
     try:
         pasta_app = get_app_path()
         db_path = os.path.join(pasta_app, "dados_farmacia.db")
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
+        # Criação Inicial das Tabelas
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS clientes (
                 telefone TEXT PRIMARY KEY,
@@ -75,16 +77,34 @@ def init_db():
                 FOREIGN KEY(cliente_tel) REFERENCES clientes(telefone)
             )
         """)
-        colunas = ["rua", "numero", "bairro", "referencia", "metodo_pagamento"]
-        for col in colunas:
+        conn.commit()
+
+        # --- SISTEMA DE AUTO-REPARO DE COLUNAS ---
+        # Verifica se as colunas novas existem. Se não, adiciona.
+        # Isso resolve o problema de "Banco antigo x Código novo"
+        
+        # Colunas extras para tabela CLIENTES
+        cols_clientes = ["rua", "numero", "bairro", "referencia"]
+        for col in cols_clientes:
             try:
-                tbl = "pedidos" if col == "metodo_pagamento" else "clientes"
-                cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} TEXT")
-            except: pass
+                cursor.execute(f"SELECT {col} FROM clientes LIMIT 1")
+            except sqlite3.OperationalError:
+                # Coluna não existe, vamos criar
+                cursor.execute(f"ALTER TABLE clientes ADD COLUMN {col} TEXT")
+                print(f"Reparado: Coluna '{col}' adicionada em Clientes.")
+
+        # Colunas extras para tabela PEDIDOS
+        try:
+            cursor.execute("SELECT metodo_pagamento FROM pedidos LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE pedidos ADD COLUMN metodo_pagamento TEXT")
+            print("Reparado: Coluna 'metodo_pagamento' adicionada em Pedidos.")
+
         conn.commit()
         conn.close()
         return db_path
     except Exception as e:
+        messagebox.showerror("Erro Crítico DB", f"Falha ao iniciar banco de dados:\n{e}")
         return "dados_farmacia.db"
 
 DB_PATH = init_db()
@@ -113,8 +133,11 @@ class App(ctk.CTk):
         self.criar_coluna_cliente()
         self.criar_coluna_pagamento()
         
-        # CORREÇÃO: Espera 1 segundo antes de checar avisos para não travar a inicialização
-        self.after(1000, self.verificar_avisos_hoje)
+        # Inicia verificação sem travar a tela (sem popup)
+        self.after(1000, self.verificar_avisos_hoje_silencioso)
+        
+        # Força o foco no campo telefone ao abrir
+        self.entry_tel.focus_set()
 
     def criar_coluna_cliente(self):
         frame_cli = ctk.CTkFrame(self)
@@ -125,6 +148,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(frame_cli, text="Telefone (Tab para buscar):").pack(anchor="w", padx=15)
         self.entry_tel = ctk.CTkEntry(frame_cli, placeholder_text="Somente números")
         self.entry_tel.pack(fill="x", padx=15, pady=(0, 10))
+        # Bind seguro
         self.entry_tel.bind("<FocusOut>", self.buscar_cliente)
 
         ctk.CTkLabel(frame_cli, text="Nome do Cliente:").pack(anchor="w", padx=15)
@@ -213,8 +237,10 @@ class App(ctk.CTk):
         self.btn_limpar.pack(side="left", fill="x", expand=True, padx=(0, 5))
         self.btn_relatorio = ctk.CTkButton(frame_botoes, text="RELATÓRIO", command=self.abrir_janela_relatorio, fg_color="#555", width=70)
         self.btn_relatorio.pack(side="left", fill="x", expand=True, padx=(5, 5))
+        
         self.btn_alertas = ctk.CTkButton(frame_botoes, text="🔔 HOJE", command=self.ver_alertas_recompra, fg_color="#555", width=70)
         self.btn_alertas.pack(side="right", fill="x", expand=True, padx=(5, 0))
+        
         self.btn_futuros = ctk.CTkButton(frame_botoes, text="📅 FUTUROS", command=self.listar_todos_agendamentos, fg_color="#34495E", width=70)
         self.btn_futuros.pack(side="right", fill="x", expand=True, padx=(5, 0))
 
@@ -225,6 +251,7 @@ class App(ctk.CTk):
         self.btn_clientes = ctk.CTkButton(frame_gestao, text="👥 CLIENTES", command=self.abrir_gestao_clientes, fg_color="#16A085", width=100)
         self.btn_clientes.pack(side="right", expand=True, fill="x", padx=(5, 0))
 
+    # ---------------- SISTEMAS: GESTÃO DE CLIENTES ----------------
     def abrir_gestao_clientes(self):
         top = ctk.CTkToplevel(self)
         top.title("Gestão de Clientes")
@@ -261,8 +288,9 @@ class App(ctk.CTk):
                 tel_fmt = self.formatar_telefone_visual(cli[0])
                 info_texto = f"{cli[1]} - {tel_fmt}\n{cli[2]}, {cli[3]} - {cli[4]}"
                 ctk.CTkLabel(card, text=info_texto, font=("Arial", 13), justify="left", anchor="w").pack(side="left", padx=10, pady=10)
+                
                 ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B", command=lambda t=cli[0]: deletar_cliente(t)).pack(side="right", padx=5)
-                ctk.CTkButton(card, text="✏️ Editar", width=60, fg_color="#F39C12", command=lambda c=cli: modal_editar_cliente(c)).pack(side="right", padx=5)
+                ctk.CTkButton(card, text="✏️", width=40, fg_color="#F39C12", command=lambda c=cli: modal_editar_cliente(c)).pack(side="right", padx=5)
                 ctk.CTkButton(card, text="🔔 +Lembrete", width=80, fg_color="#8E44AD", command=lambda c=cli: modal_adicionar_lembrete(c)).pack(side="right", padx=5)
 
         def deletar_cliente(telefone):
@@ -310,7 +338,6 @@ class App(ctk.CTk):
             lem_win.title(f"Novo Lembrete: {dados_cli[1]}")
             lem_win.geometry("400x300")
             lem_win.attributes("-topmost", True)
-            
             ctk.CTkLabel(lem_win, text="Nome do Medicamento:").pack(anchor="w", padx=20, pady=(20,0))
             e_med = ctk.CTkEntry(lem_win); e_med.pack(fill="x", padx=20)
             ctk.CTkLabel(lem_win, text="Duração (Dias):").pack(anchor="w", padx=20)
@@ -332,7 +359,7 @@ class App(ctk.CTk):
                 conn.close()
                 messagebox.showinfo("Sucesso", "Lembrete agendado!")
                 lem_win.destroy()
-                self.verificar_avisos_hoje()
+                self.verificar_avisos_hoje_silencioso()
 
             ctk.CTkButton(lem_win, text="AGENDAR", command=salvar_lembrete_manual, fg_color="#8E44AD").pack(pady=20)
 
@@ -402,7 +429,7 @@ class App(ctk.CTk):
             conn.close()
             janela.destroy()
             self.listar_todos_agendamentos()
-            self.verificar_avisos_hoje()
+            self.verificar_avisos_hoje_silencioso()
 
     def salvar_apenas_cliente(self):
         tel_limpo = self.limpar_telefone(self.entry_tel.get())
@@ -508,22 +535,29 @@ class App(ctk.CTk):
             self.lbl_troco.configure(text="JÁ PAGO (Sem Troco)")
 
     def buscar_cliente(self, event=None):
-        tel = self.limpar_telefone(self.entry_tel.get())
-        if not tel: return
+        tel_bruto = self.entry_tel.get()
+        tel_limpo = self.limpar_telefone(tel_bruto)
+        if not tel_limpo: return
+        
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+        
+        # --- DEBUG DE ERROS: AGORA MOSTRA SE FALHAR ---
         try:
-            cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel,))
+            cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel_limpo,))
             res = cursor.fetchone()
-        except: res = None
+        except Exception as e:
+            messagebox.showerror("Erro Busca", f"Ocorreu um erro ao buscar no banco:\n{e}")
+            res = None
         conn.close()
+        
         if res:
             self.entry_nome.delete(0, "end"); self.entry_nome.insert(0, res[0])
             if res[1]: self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, res[1])
             if res[2]: self.entry_num.delete(0, "end"); self.entry_num.insert(0, res[2])
             if res[3]: self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, res[3])
             if res[4]: self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, res[4])
-            self.entry_tel.delete(0, "end"); self.entry_tel.insert(0, self.formatar_telefone_visual(tel))
+            self.entry_tel.delete(0, "end"); self.entry_tel.insert(0, self.formatar_telefone_visual(tel_limpo))
 
     def atualizar_totais(self, event=None):
         val_prod = self.formatar_float(self.entry_val.get())
@@ -621,7 +655,7 @@ class App(ctk.CTk):
         texto_cupom = f"CLI: {nome}\nTEL: {tel_fmt}\n" + "-" * 32 + "\n"
         texto_cupom += f"ENTREGA:\n{rua_wrap}\n{bairro_wrap}\n\n"
         if ref: texto_cupom += f"{ref_wrap}\n"
-        texto_cupom += "-" * 32 + "\n" + f"MOTOBOY: {self.var_entregador.get()}\n" + "-" * 32 + "\n"
+        texto_cupom += "-" * 32 + "\n" + f"MOTO: {self.var_entregador.get()}\n" + "-" * 32 + "\n"
         
         v_prod = self.formatar_float(self.entry_val.get())
         v_taxa = self.formatar_float(self.entry_taxa.get())
@@ -649,7 +683,8 @@ class App(ctk.CTk):
         self.imprimir_termica_raw(texto_cupom)
         self.limpar_tela()
 
-    def verificar_avisos_hoje(self):
+    def verificar_avisos_hoje_silencioso(self):
+        """Verifica avisos sem travar a tela (muda apenas a cor do botão)"""
         hoje = datetime.now().strftime("%Y-%m-%d")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -659,7 +694,6 @@ class App(ctk.CTk):
         
         if qtd > 0:
             self.btn_alertas.configure(fg_color="#E74C3C", text=f"🔔 {qtd} CLIENTES!") 
-            messagebox.showinfo("Fidelização", f"ATENÇÃO: {qtd} clientes precisam repor remédio hoje!")
         else:
             self.btn_alertas.configure(fg_color="#555", text="🔔 RECOMPRAS")
 
@@ -718,7 +752,7 @@ class App(ctk.CTk):
         conn.close()
         janela.destroy()
         self.ver_alertas_recompra()
-        self.verificar_avisos_hoje()
+        self.verificar_avisos_hoje_silencioso()
 
     def abrir_janela_relatorio(self):
         hoje = datetime.now().strftime("%Y-%m-%d")
