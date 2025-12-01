@@ -23,7 +23,7 @@ LARGURA_PAPEL = 48
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v6.2' 
+        myappid = 'totalpharma.delivery.pdv.v6.5' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -93,7 +93,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("TotalPharma - PDV Profissional")
-        self.geometry("950x780")
+        self.geometry("980x780")
         
         try:
             if getattr(sys, 'frozen', False):
@@ -154,20 +154,12 @@ class App(ctk.CTk):
         ctk.CTkRadioButton(frame_radio, text="Entregador da Tarde/Noite", variable=self.var_entregador, value="Entregador da Tarde/Noite").pack(anchor="w", pady=2)
         ctk.CTkRadioButton(frame_radio, text="Moto Extra", variable=self.var_entregador, value="Moto Extra").pack(anchor="w", pady=2)
 
-        # --- BOTÕES DE AÇÃO DO CLIENTE ---
         frame_botoes_cli = ctk.CTkFrame(frame_cli, fg_color="transparent")
         frame_botoes_cli.pack(fill="x", padx=15, pady=(20, 10))
-
-        self.btn_salvar_cli = ctk.CTkButton(frame_botoes_cli, text="💾 SALVAR", 
-                                            command=self.salvar_apenas_cliente, 
-                                            fg_color="#2980B9", width=100)
+        self.btn_salvar_cli = ctk.CTkButton(frame_botoes_cli, text="💾 SALVAR", command=self.salvar_apenas_cliente, fg_color="#2980B9", width=100)
         self.btn_salvar_cli.pack(side="left", expand=True, fill="x", padx=(0, 5))
-
-        self.btn_print_end = ctk.CTkButton(frame_botoes_cli, text="🖨️ ETIQUETA", 
-                                            command=self.imprimir_apenas_endereco, 
-                                            fg_color="#E67E22", width=100)
+        self.btn_print_end = ctk.CTkButton(frame_botoes_cli, text="🖨️ ETIQUETA", command=self.imprimir_apenas_endereco, fg_color="#E67E22", width=100)
         self.btn_print_end.pack(side="right", expand=True, fill="x", padx=(5, 0))
-
 
     def criar_coluna_pagamento(self):
         frame_pag = ctk.CTkFrame(self)
@@ -216,15 +208,104 @@ class App(ctk.CTk):
         # --- BOTÕES DE AÇÃO ---
         frame_botoes = ctk.CTkFrame(frame_pag, fg_color="transparent")
         frame_botoes.pack(fill="x", padx=20)
-        self.btn_limpar = ctk.CTkButton(frame_botoes, text="LIMPAR", command=self.limpar_tela, fg_color="#C0392B", width=80)
+        self.btn_limpar = ctk.CTkButton(frame_botoes, text="LIMPAR", command=self.limpar_tela, fg_color="#C0392B", width=70)
         self.btn_limpar.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        self.btn_relatorio = ctk.CTkButton(frame_botoes, text="RELATÓRIO", command=self.abrir_janela_relatorio, fg_color="#555", width=80)
+        self.btn_relatorio = ctk.CTkButton(frame_botoes, text="RELATÓRIO", command=self.abrir_janela_relatorio, fg_color="#555", width=70)
         self.btn_relatorio.pack(side="left", fill="x", expand=True, padx=(5, 5))
-        self.btn_alertas = ctk.CTkButton(frame_botoes, text="🔔 RECOMPRAS", command=self.ver_alertas_recompra, fg_color="#555", width=80)
+        
+        # BOTÕES DE FIDELIDADE
+        self.btn_alertas = ctk.CTkButton(frame_botoes, text="🔔 HOJE", command=self.ver_alertas_recompra, fg_color="#555", width=70)
         self.btn_alertas.pack(side="right", fill="x", expand=True, padx=(5, 0))
+        
+        # NOVO: BOTÃO LISTA FUTURA
+        self.btn_futuros = ctk.CTkButton(frame_botoes, text="📅 FUTUROS", command=self.listar_todos_agendamentos, fg_color="#34495E", width=70)
+        self.btn_futuros.pack(side="right", fill="x", expand=True, padx=(5, 0))
 
         self.btn_backup = ctk.CTkButton(frame_pag, text="💾 FAZER BACKUP SEGURANÇA", command=self.fazer_backup_seguranca, fg_color="#8E44AD", height=30)
         self.btn_backup.pack(fill="x", padx=20, pady=(10, 20))
+
+    # --- NOVO: LISTAR TODOS OS AGENDAMENTOS ---
+    def listar_todos_agendamentos(self):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Pega todos os pendentes ordenados por data
+        cursor.execute("""
+            SELECT l.id, c.nome, c.telefone, l.medicamento, l.data_aviso 
+            FROM lembretes l
+            JOIN clientes c ON l.cliente_tel = c.telefone
+            WHERE l.status = 'PENDENTE'
+            ORDER BY l.data_aviso ASC
+        """)
+        dados = cursor.fetchall()
+        conn.close()
+
+        top = ctk.CTkToplevel(self)
+        top.title("Todos os Agendamentos Futuros")
+        top.geometry("700x600")
+        top.attributes("-topmost", True)
+        
+        ctk.CTkLabel(top, text="PRÓXIMAS RECOMPRAS", font=("Arial", 20, "bold"), text_color="#3498DB").pack(pady=10)
+        
+        scroll = ctk.CTkScrollableFrame(top)
+        scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        hoje = datetime.now().date()
+        
+        if not dados:
+            ctk.CTkLabel(scroll, text="Nenhum agendamento encontrado.").pack(pady=20)
+            return
+
+        for id_lembrete, nome, tel, med, data_str in dados:
+            card = ctk.CTkFrame(scroll, fg_color="#2C3E50")
+            card.pack(fill="x", pady=5)
+            
+            # Cálculo de dias restantes
+            data_alvo = datetime.strptime(data_str, "%Y-%m-%d").date()
+            dias_restantes = (data_alvo - hoje).days
+            
+            # Lógica de Cores e Texto
+            if dias_restantes < 0:
+                cor_status = "#E74C3C" # Vermelho
+                texto_status = f"ATRASADO {abs(dias_restantes)} DIAS"
+            elif dias_restantes == 0:
+                cor_status = "#F39C12" # Laranja
+                texto_status = "É HOJE!"
+            else:
+                cor_status = "#27AE60" # Verde
+                texto_status = f"Faltam {dias_restantes} dias ({data_alvo.strftime('%d/%m')})"
+
+            # Info Esquerda
+            frame_info = ctk.CTkFrame(card, fg_color="transparent")
+            frame_info.pack(side="left", padx=10, pady=5)
+            
+            tel_fmt = self.formatar_telefone_visual(tel)
+            ctk.CTkLabel(frame_info, text=f"{nome}", font=("Arial", 14, "bold")).pack(anchor="w")
+            ctk.CTkLabel(frame_info, text=f"Remédio: {med}", text_color="#BDC3C7").pack(anchor="w")
+            
+            # Status Central
+            ctk.CTkLabel(card, text=texto_status, text_color=cor_status, font=("Arial", 13, "bold")).pack(side="left", padx=20)
+            
+            # Botões Direita
+            btn_apagar = ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B",
+                                       command=lambda i=id_lembrete, t=top: self.apagar_lembrete(i, t))
+            btn_apagar.pack(side="right", padx=5)
+            
+            if dias_restantes <= 0:
+                btn_zap = ctk.CTkButton(card, text="💬", width=40, fg_color="#25D366",
+                                        command=lambda n=nome, tele=tel, m=med: self.abrir_whatsapp_recompra(n, tele, m))
+                btn_zap.pack(side="right", padx=5)
+
+    def apagar_lembrete(self, id_lembrete, janela):
+        if messagebox.askyesno("Confirmar", "Tem certeza que deseja apagar este lembrete?"):
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM lembretes WHERE id = ?", (id_lembrete,))
+            conn.commit()
+            conn.close()
+            janela.destroy()
+            self.listar_todos_agendamentos() # Recarrega
+            self.verificar_avisos_hoje()
 
     # ---------------- LOGICA DE SALVAR APENAS CLIENTE ----------------
     def salvar_apenas_cliente(self):
@@ -248,42 +329,6 @@ class App(ctk.CTk):
             messagebox.showerror("Erro BD", str(e))
         finally: conn.close()
 
-    # ---------------- LOGICA DE IMPRIMIR SÓ ETIQUETA ----------------
-    def imprimir_apenas_endereco(self):
-        tel_limpo = self.limpar_telefone(self.entry_tel.get())
-        nome = self.entry_nome.get().strip()
-        if not tel_limpo or not nome:
-            messagebox.showwarning("Aviso", "Preencha dados do cliente.")
-            return
-        
-        rua = self.entry_rua.get().strip()
-        num = self.entry_num.get().strip()
-        bairro = self.entry_bairro.get().strip()
-        ref = self.entry_ref.get().strip()
-        
-        tel_fmt = self.formatar_telefone_visual(tel_limpo)
-        
-        rua_full = f"{rua}, {num}"
-        bairro_full = f"Bairro: {bairro}"
-        rua_wrap = textwrap.fill(rua_full, width=LARGURA_PAPEL)
-        bairro_wrap = textwrap.fill(bairro_full, width=LARGURA_PAPEL)
-        ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
-
-        texto = "-" * 32 + "\n"
-        texto += "       ENTREGA RAPIDA\n"
-        texto += "-" * 32 + "\n"
-        texto += f"CLI: {nome}\n"
-        texto += f"TEL: {tel_fmt}\n"
-        texto += "-" * 32 + "\n"
-        texto += f"{rua_wrap}\n{bairro_wrap}\n\n"
-        if ref: texto += f"{ref_wrap}\n"
-        texto += "-" * 32 + "\n"
-        texto += f"MOTO: {self.var_entregador.get()}\n"
-        texto += "-" * 32 + "\n"
-
-        self.imprimir_termica_raw(texto)
-
-    # ---------------- LÓGICA DE BACKUP ----------------
     def fazer_backup_seguranca(self):
         try:
             db_origem = DB_PATH
@@ -299,7 +344,28 @@ class App(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Erro Backup", f"Não foi possível fazer o backup:\n{e}")
 
-    # ---------------- AUXILIARES ----------------
+    def imprimir_apenas_endereco(self):
+        tel_limpo = self.limpar_telefone(self.entry_tel.get())
+        nome = self.entry_nome.get().strip()
+        if not tel_limpo or not nome:
+            messagebox.showwarning("Aviso", "Preencha dados do cliente.")
+            return
+        rua = self.entry_rua.get().strip()
+        num = self.entry_num.get().strip()
+        bairro = self.entry_bairro.get().strip()
+        ref = self.entry_ref.get().strip()
+        tel_fmt = self.formatar_telefone_visual(tel_limpo)
+        rua_wrap = textwrap.fill(f"{rua}, {num}", width=LARGURA_PAPEL)
+        bairro_wrap = textwrap.fill(f"Bairro: {bairro}", width=LARGURA_PAPEL)
+        ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
+
+        texto = "-" * 32 + "\n       ENTREGA RAPIDA\n" + "-" * 32 + "\n"
+        texto += f"CLI: {nome}\nTEL: {tel_fmt}\n" + "-" * 32 + "\n"
+        texto += f"{rua_wrap}\n{bairro_wrap}\n\n"
+        if ref: texto += f"{ref_wrap}\n"
+        texto += "-" * 32 + "\n" + f"MOTO: {self.var_entregador.get()}\n" + "-" * 32 + "\n"
+        self.imprimir_termica_raw(texto)
+
     def limpar_telefone(self, tel):
         numeros = "".join(filter(str.isdigit, tel))
         tam = len(numeros)
@@ -318,10 +384,8 @@ class App(ctk.CTk):
 
     def remover_acentos(self, texto):
         if not texto: return ""
-        try:
-            return unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
-        except:
-            return texto
+        try: return unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
+        except: return texto
 
     def toggle_lembrete(self):
         if self.chk_lembrete.get() == 1:
@@ -339,7 +403,6 @@ class App(ctk.CTk):
         self.entry_troco.delete(0, "end")
         self.lbl_total.configure(text="TOTAL: R$ 0.00"); self.lbl_troco.configure(text="Troco: R$ 0.00")
         self.combo_pagamento.set("Dinheiro"); self.entry_troco.configure(state="normal")
-        # self.var_entregador.set("Entregador da Manhã") # COMENTADO PARA NÃO RESETAR
         self.chk_lembrete.deselect(); self.toggle_lembrete()
         self.entry_med_nome.delete(0, "end"); self.entry_dias_duracao.delete(0, "end")
         self.entry_tel.focus_set()
@@ -392,9 +455,6 @@ class App(ctk.CTk):
     def imprimir_termica_raw(self, texto_cupom):
         printer_name = win32print.GetDefaultPrinter()
         
-        # Limpa acentos
-        texto_limpo = self.remover_acentos(texto_cupom)
-        
         ESC = b'\x1b'; GS = b'\x1d'
         INIT = ESC + b'@'; CENTER = ESC + b'a\x01'; LEFT = ESC + b'a\x00'
         BOLD_ON = ESC + b'E\x01'; BOLD_OFF = ESC + b'E\x00'
@@ -407,13 +467,13 @@ class App(ctk.CTk):
                 try:
                     win32print.StartPagePrinter(hPrinter)
                     
-                    if "ENTREGA RAPIDA" in texto_limpo:
-                        # Etiqueta
+                    if "ENTREGA RAPIDA" in texto_cupom:
+                        # Etiqueta com acentos
                         buffer = INIT + LEFT + BOLD_ON
-                        buffer += texto_limpo.encode("cp850", "replace")
+                        buffer += texto_cupom.encode("cp850", "replace")
                         buffer += b"\n\n\n" + CUT 
                     else:
-                        # Cupom
+                        # Cupom com acentos
                         buffer = INIT + CENTER + BOLD_ON
                         buffer += bytes("FARMACIA TOTALPHARMA\n", "latin1", "replace")
                         buffer += BOLD_OFF
@@ -421,7 +481,7 @@ class App(ctk.CTk):
                         buffer += bytes(f"{dt_hora}\n", "latin1")
                         buffer += bytes("--------------------------------\n", "latin1")
                         buffer += LEFT 
-                        buffer += texto_limpo.encode("cp850", "replace")
+                        buffer += texto_cupom.encode("cp850", "replace")
                         buffer += CENTER + bytes("\nObrigado pela preferencia!\n", "latin1")
                         buffer += bytes("--------------------------------\n", "latin1")
                         buffer += b"\n\n\n" + CUT 
@@ -470,11 +530,8 @@ class App(ctk.CTk):
             pago_msg = f"R$ {total:.2f}"
 
         tel_fmt = self.formatar_telefone_visual(tel_limpo)
-        
-        rua_full = f"{rua}, {num}"
-        bairro_full = f"Bairro: {bairro}"
-        rua_wrap = textwrap.fill(rua_full, width=LARGURA_PAPEL)
-        bairro_wrap = textwrap.fill(bairro_full, width=LARGURA_PAPEL)
+        rua_wrap = textwrap.fill(f"{rua}, {num}", width=LARGURA_PAPEL)
+        bairro_wrap = textwrap.fill(f"Bairro: {bairro}", width=LARGURA_PAPEL)
         ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
 
         texto_cupom = f"CLI: {nome}\nTEL: {tel_fmt}\n" + "-" * 32 + "\n"
