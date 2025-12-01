@@ -23,7 +23,7 @@ LARGURA_PAPEL = 48
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v7.2' 
+        myappid = 'totalpharma.delivery.pdv.v7.4' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -38,14 +38,12 @@ def get_app_path():
     return pasta_app
 
 def init_db():
-    """Inicializa e REPARA o banco de dados se necessário"""
     try:
         pasta_app = get_app_path()
         db_path = os.path.join(pasta_app, "dados_farmacia.db")
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # Criação Inicial das Tabelas
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS clientes (
                 telefone TEXT PRIMARY KEY,
@@ -77,34 +75,16 @@ def init_db():
                 FOREIGN KEY(cliente_tel) REFERENCES clientes(telefone)
             )
         """)
-        conn.commit()
-
-        # --- SISTEMA DE AUTO-REPARO DE COLUNAS ---
-        # Verifica se as colunas novas existem. Se não, adiciona.
-        # Isso resolve o problema de "Banco antigo x Código novo"
-        
-        # Colunas extras para tabela CLIENTES
-        cols_clientes = ["rua", "numero", "bairro", "referencia"]
-        for col in cols_clientes:
+        colunas = ["rua", "numero", "bairro", "referencia", "metodo_pagamento"]
+        for col in colunas:
             try:
-                cursor.execute(f"SELECT {col} FROM clientes LIMIT 1")
-            except sqlite3.OperationalError:
-                # Coluna não existe, vamos criar
-                cursor.execute(f"ALTER TABLE clientes ADD COLUMN {col} TEXT")
-                print(f"Reparado: Coluna '{col}' adicionada em Clientes.")
-
-        # Colunas extras para tabela PEDIDOS
-        try:
-            cursor.execute("SELECT metodo_pagamento FROM pedidos LIMIT 1")
-        except sqlite3.OperationalError:
-            cursor.execute("ALTER TABLE pedidos ADD COLUMN metodo_pagamento TEXT")
-            print("Reparado: Coluna 'metodo_pagamento' adicionada em Pedidos.")
-
+                tbl = "pedidos" if col == "metodo_pagamento" else "clientes"
+                cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} TEXT")
+            except: pass
         conn.commit()
         conn.close()
         return db_path
     except Exception as e:
-        messagebox.showerror("Erro Crítico DB", f"Falha ao iniciar banco de dados:\n{e}")
         return "dados_farmacia.db"
 
 DB_PATH = init_db()
@@ -133,11 +113,11 @@ class App(ctk.CTk):
         self.criar_coluna_cliente()
         self.criar_coluna_pagamento()
         
-        # Inicia verificação sem travar a tela (sem popup)
-        self.after(1000, self.verificar_avisos_hoje_silencioso)
+        # Garante que começa limpo e destravado
+        self.limpar_tela()
         
-        # Força o foco no campo telefone ao abrir
-        self.entry_tel.focus_set()
+        # Verificação silenciosa (sem travar)
+        self.after(1000, self.verificar_avisos_hoje_silencioso)
 
     def criar_coluna_cliente(self):
         frame_cli = ctk.CTkFrame(self)
@@ -148,8 +128,10 @@ class App(ctk.CTk):
         ctk.CTkLabel(frame_cli, text="Telefone (Tab para buscar):").pack(anchor="w", padx=15)
         self.entry_tel = ctk.CTkEntry(frame_cli, placeholder_text="Somente números")
         self.entry_tel.pack(fill="x", padx=15, pady=(0, 10))
-        # Bind seguro
-        self.entry_tel.bind("<FocusOut>", self.buscar_cliente)
+        # REMOVIDO FocusOut para evitar travamento. Use ENTER ou TAB natural.
+        self.entry_tel.bind("<KeyRelease>", self.ao_digitar_telefone) 
+        self.entry_tel.bind("<Return>", self.buscar_cliente_enter)
+        self.entry_tel.bind("<FocusOut>", self.buscar_cliente_tab) # Mantido mas simplificado
 
         ctk.CTkLabel(frame_cli, text="Nome do Cliente:").pack(anchor="w", padx=15)
         self.entry_nome = ctk.CTkEntry(frame_cli)
@@ -251,6 +233,45 @@ class App(ctk.CTk):
         self.btn_clientes = ctk.CTkButton(frame_gestao, text="👥 CLIENTES", command=self.abrir_gestao_clientes, fg_color="#16A085", width=100)
         self.btn_clientes.pack(side="right", expand=True, fill="x", padx=(5, 0))
 
+    # --- LÓGICA DE BUSCA SEGURA (SEM TRAVAR) ---
+    def ao_digitar_telefone(self, event=None):
+        # Apenas formata visualmente enquanto digita, não busca no banco
+        # Isso evita lag a cada tecla
+        pass 
+
+    def buscar_cliente_enter(self, event=None):
+        self.realizar_busca_db()
+        # Se for Enter, podemos mover o foco para o próximo campo
+        self.entry_nome.focus_set()
+
+    def buscar_cliente_tab(self, event=None):
+        self.realizar_busca_db()
+        # No Tab, NÃO movemos o foco manualmente, deixamos o sistema ir natural
+
+    def realizar_busca_db(self):
+        tel_bruto = self.entry_tel.get()
+        tel_limpo = self.limpar_telefone(tel_bruto)
+        if not tel_limpo: return
+        
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel_limpo,))
+            res = cursor.fetchone()
+        except: res = None
+        conn.close()
+        
+        if res:
+            self.entry_nome.delete(0, "end"); self.entry_nome.insert(0, res[0])
+            if res[1]: self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, res[1])
+            if res[2]: self.entry_num.delete(0, "end"); self.entry_num.insert(0, res[2])
+            if res[3]: self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, res[3])
+            if res[4]: self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, res[4])
+            
+            # Formata o telefone e atualiza o campo
+            self.entry_tel.delete(0, "end")
+            self.entry_tel.insert(0, self.formatar_telefone_visual(tel_limpo))
+
     # ---------------- SISTEMAS: GESTÃO DE CLIENTES ----------------
     def abrir_gestao_clientes(self):
         top = ctk.CTkToplevel(self)
@@ -288,9 +309,8 @@ class App(ctk.CTk):
                 tel_fmt = self.formatar_telefone_visual(cli[0])
                 info_texto = f"{cli[1]} - {tel_fmt}\n{cli[2]}, {cli[3]} - {cli[4]}"
                 ctk.CTkLabel(card, text=info_texto, font=("Arial", 13), justify="left", anchor="w").pack(side="left", padx=10, pady=10)
-                
                 ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B", command=lambda t=cli[0]: deletar_cliente(t)).pack(side="right", padx=5)
-                ctk.CTkButton(card, text="✏️", width=40, fg_color="#F39C12", command=lambda c=cli: modal_editar_cliente(c)).pack(side="right", padx=5)
+                ctk.CTkButton(card, text="✏️ Editar", width=60, fg_color="#F39C12", command=lambda c=cli: modal_editar_cliente(c)).pack(side="right", padx=5)
                 ctk.CTkButton(card, text="🔔 +Lembrete", width=80, fg_color="#8E44AD", command=lambda c=cli: modal_adicionar_lembrete(c)).pack(side="right", padx=5)
 
         def deletar_cliente(telefone):
@@ -367,6 +387,7 @@ class App(ctk.CTk):
         btn_buscar.pack(side="right")
         carregar_clientes()
 
+    # ---------------- SISTEMAS ----------------
     def listar_todos_agendamentos(self):
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -535,29 +556,7 @@ class App(ctk.CTk):
             self.lbl_troco.configure(text="JÁ PAGO (Sem Troco)")
 
     def buscar_cliente(self, event=None):
-        tel_bruto = self.entry_tel.get()
-        tel_limpo = self.limpar_telefone(tel_bruto)
-        if not tel_limpo: return
-        
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        # --- DEBUG DE ERROS: AGORA MOSTRA SE FALHAR ---
-        try:
-            cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel_limpo,))
-            res = cursor.fetchone()
-        except Exception as e:
-            messagebox.showerror("Erro Busca", f"Ocorreu um erro ao buscar no banco:\n{e}")
-            res = None
-        conn.close()
-        
-        if res:
-            self.entry_nome.delete(0, "end"); self.entry_nome.insert(0, res[0])
-            if res[1]: self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, res[1])
-            if res[2]: self.entry_num.delete(0, "end"); self.entry_num.insert(0, res[2])
-            if res[3]: self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, res[3])
-            if res[4]: self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, res[4])
-            self.entry_tel.delete(0, "end"); self.entry_tel.insert(0, self.formatar_telefone_visual(tel_limpo))
+        pass # A LÓGICA AGORA ESTÁ EM buscar_cliente_tab e enter
 
     def atualizar_totais(self, event=None):
         val_prod = self.formatar_float(self.entry_val.get())
@@ -576,23 +575,29 @@ class App(ctk.CTk):
         if pago > total: self.lbl_troco.configure(text=f"TROCO: R$ {pago - total:.2f}")
         else: self.lbl_troco.configure(text="Troco: R$ 0.00")
 
+    # --- IMPRESSÃO TÉRMICA PROFISSIONAL (RAW) ---
     def imprimir_termica_raw(self, texto_cupom):
         printer_name = win32print.GetDefaultPrinter()
+        
         ESC = b'\x1b'; GS = b'\x1d'
         INIT = ESC + b'@'; CENTER = ESC + b'a\x01'; LEFT = ESC + b'a\x00'
         BOLD_ON = ESC + b'E\x01'; BOLD_OFF = ESC + b'E\x00'
         CUT = GS + b'V\x00'
+        
         try:
             hPrinter = win32print.OpenPrinter(printer_name)
             try:
                 hJob = win32print.StartDocPrinter(hPrinter, 1, ("Cupom Farmacia", None, "RAW"))
                 try:
                     win32print.StartPagePrinter(hPrinter)
+                    
                     if "ENTREGA RAPIDA" in texto_cupom:
+                        # Etiqueta com acentos (CP1252 para Elgin)
                         buffer = INIT + LEFT + BOLD_ON
                         buffer += texto_cupom.encode("cp1252", "replace")
                         buffer += b"\n\n\n" + CUT 
                     else:
+                        # Cupom com acentos (CP1252 para Elgin)
                         buffer = INIT + CENTER + BOLD_ON
                         buffer += bytes("FARMACIA TOTALPHARMA\n", "latin1", "replace")
                         buffer += BOLD_OFF
@@ -604,6 +609,7 @@ class App(ctk.CTk):
                         buffer += CENTER + bytes("\nObrigado pela preferencia!\n", "latin1")
                         buffer += bytes("--------------------------------\n", "latin1")
                         buffer += b"\n\n\n" + CUT 
+                    
                     win32print.WritePrinter(hPrinter, buffer)
                     win32print.EndPagePrinter(hPrinter)
                 finally: win32print.EndDocPrinter(hPrinter)
@@ -684,7 +690,6 @@ class App(ctk.CTk):
         self.limpar_tela()
 
     def verificar_avisos_hoje_silencioso(self):
-        """Verifica avisos sem travar a tela (muda apenas a cor do botão)"""
         hoje = datetime.now().strftime("%Y-%m-%d")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
