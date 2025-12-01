@@ -23,7 +23,7 @@ LARGURA_PAPEL = 48
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v7.4' 
+        myappid = 'totalpharma.delivery.pdv.v6.6' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -112,12 +112,7 @@ class App(ctk.CTk):
 
         self.criar_coluna_cliente()
         self.criar_coluna_pagamento()
-        
-        # Garante que começa limpo e destravado
-        self.limpar_tela()
-        
-        # Verificação silenciosa (sem travar)
-        self.after(1000, self.verificar_avisos_hoje_silencioso)
+        self.verificar_avisos_hoje()
 
     def criar_coluna_cliente(self):
         frame_cli = ctk.CTkFrame(self)
@@ -128,10 +123,7 @@ class App(ctk.CTk):
         ctk.CTkLabel(frame_cli, text="Telefone (Tab para buscar):").pack(anchor="w", padx=15)
         self.entry_tel = ctk.CTkEntry(frame_cli, placeholder_text="Somente números")
         self.entry_tel.pack(fill="x", padx=15, pady=(0, 10))
-        # REMOVIDO FocusOut para evitar travamento. Use ENTER ou TAB natural.
-        self.entry_tel.bind("<KeyRelease>", self.ao_digitar_telefone) 
-        self.entry_tel.bind("<Return>", self.buscar_cliente_enter)
-        self.entry_tel.bind("<FocusOut>", self.buscar_cliente_tab) # Mantido mas simplificado
+        self.entry_tel.bind("<FocusOut>", self.buscar_cliente)
 
         ctk.CTkLabel(frame_cli, text="Nome do Cliente:").pack(anchor="w", padx=15)
         self.entry_nome = ctk.CTkEntry(frame_cli)
@@ -162,12 +154,20 @@ class App(ctk.CTk):
         ctk.CTkRadioButton(frame_radio, text="Entregador da Tarde/Noite", variable=self.var_entregador, value="Entregador da Tarde/Noite").pack(anchor="w", pady=2)
         ctk.CTkRadioButton(frame_radio, text="Moto Extra", variable=self.var_entregador, value="Moto Extra").pack(anchor="w", pady=2)
 
+        # --- BOTÕES DE AÇÃO DO CLIENTE ---
         frame_botoes_cli = ctk.CTkFrame(frame_cli, fg_color="transparent")
         frame_botoes_cli.pack(fill="x", padx=15, pady=(20, 10))
-        self.btn_salvar_cli = ctk.CTkButton(frame_botoes_cli, text="💾 SALVAR", command=self.salvar_apenas_cliente, fg_color="#2980B9", width=100)
+
+        self.btn_salvar_cli = ctk.CTkButton(frame_botoes_cli, text="💾 SALVAR", 
+                                            command=self.salvar_apenas_cliente, 
+                                            fg_color="#2980B9", width=100)
         self.btn_salvar_cli.pack(side="left", expand=True, fill="x", padx=(0, 5))
-        self.btn_print_end = ctk.CTkButton(frame_botoes_cli, text="🖨️ ETIQUETA", command=self.imprimir_apenas_endereco, fg_color="#E67E22", width=100)
+
+        self.btn_print_end = ctk.CTkButton(frame_botoes_cli, text="🖨️ ETIQUETA", 
+                                            command=self.imprimir_apenas_endereco, 
+                                            fg_color="#E67E22", width=100)
         self.btn_print_end.pack(side="right", expand=True, fill="x", padx=(5, 0))
+
 
     def criar_coluna_pagamento(self):
         frame_pag = ctk.CTkFrame(self)
@@ -213,6 +213,7 @@ class App(ctk.CTk):
         self.btn_imprimir = ctk.CTkButton(frame_pag, text="FINALIZAR E IMPRIMIR", command=self.finalizar, height=55, fg_color="#2CC985", text_color="black", font=("Arial", 15, "bold"))
         self.btn_imprimir.pack(fill="x", padx=20, pady=(15, 10))
         
+        # --- BOTÕES DE AÇÃO ---
         frame_botoes = ctk.CTkFrame(frame_pag, fg_color="transparent")
         frame_botoes.pack(fill="x", padx=20)
         self.btn_limpar = ctk.CTkButton(frame_botoes, text="LIMPAR", command=self.limpar_tela, fg_color="#C0392B", width=70)
@@ -226,166 +227,8 @@ class App(ctk.CTk):
         self.btn_futuros = ctk.CTkButton(frame_botoes, text="📅 FUTUROS", command=self.listar_todos_agendamentos, fg_color="#34495E", width=70)
         self.btn_futuros.pack(side="right", fill="x", expand=True, padx=(5, 0))
 
-        frame_gestao = ctk.CTkFrame(frame_pag, fg_color="transparent")
-        frame_gestao.pack(fill="x", padx=20, pady=(10, 20))
-        self.btn_backup = ctk.CTkButton(frame_gestao, text="💾 BACKUP", command=self.fazer_backup_seguranca, fg_color="#8E44AD", width=100)
-        self.btn_backup.pack(side="left", expand=True, fill="x", padx=(0, 5))
-        self.btn_clientes = ctk.CTkButton(frame_gestao, text="👥 CLIENTES", command=self.abrir_gestao_clientes, fg_color="#16A085", width=100)
-        self.btn_clientes.pack(side="right", expand=True, fill="x", padx=(5, 0))
-
-    # --- LÓGICA DE BUSCA SEGURA (SEM TRAVAR) ---
-    def ao_digitar_telefone(self, event=None):
-        # Apenas formata visualmente enquanto digita, não busca no banco
-        # Isso evita lag a cada tecla
-        pass 
-
-    def buscar_cliente_enter(self, event=None):
-        self.realizar_busca_db()
-        # Se for Enter, podemos mover o foco para o próximo campo
-        self.entry_nome.focus_set()
-
-    def buscar_cliente_tab(self, event=None):
-        self.realizar_busca_db()
-        # No Tab, NÃO movemos o foco manualmente, deixamos o sistema ir natural
-
-    def realizar_busca_db(self):
-        tel_bruto = self.entry_tel.get()
-        tel_limpo = self.limpar_telefone(tel_bruto)
-        if not tel_limpo: return
-        
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        try:
-            cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel_limpo,))
-            res = cursor.fetchone()
-        except: res = None
-        conn.close()
-        
-        if res:
-            self.entry_nome.delete(0, "end"); self.entry_nome.insert(0, res[0])
-            if res[1]: self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, res[1])
-            if res[2]: self.entry_num.delete(0, "end"); self.entry_num.insert(0, res[2])
-            if res[3]: self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, res[3])
-            if res[4]: self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, res[4])
-            
-            # Formata o telefone e atualiza o campo
-            self.entry_tel.delete(0, "end")
-            self.entry_tel.insert(0, self.formatar_telefone_visual(tel_limpo))
-
-    # ---------------- SISTEMAS: GESTÃO DE CLIENTES ----------------
-    def abrir_gestao_clientes(self):
-        top = ctk.CTkToplevel(self)
-        top.title("Gestão de Clientes")
-        top.geometry("850x650")
-        top.attributes("-topmost", True)
-
-        frame_busca = ctk.CTkFrame(top)
-        frame_busca.pack(fill="x", padx=10, pady=10)
-        entry_busca = ctk.CTkEntry(frame_busca, placeholder_text="Buscar por Nome ou Telefone...")
-        entry_busca.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        
-        scroll = ctk.CTkScrollableFrame(top)
-        scroll.pack(fill="both", expand=True, padx=10, pady=(0,10))
-
-        def carregar_clientes(termo=""):
-            for widget in scroll.winfo_children(): widget.destroy()
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            if termo:
-                t = f"%{termo}%"
-                cursor.execute("SELECT * FROM clientes WHERE nome LIKE ? OR telefone LIKE ? ORDER BY nome", (t, t))
-            else:
-                cursor.execute("SELECT * FROM clientes ORDER BY nome")
-            clientes = cursor.fetchall()
-            conn.close()
-
-            if not clientes:
-                ctk.CTkLabel(scroll, text="Nenhum cliente encontrado.").pack(pady=20)
-                return
-
-            for cli in clientes:
-                card = ctk.CTkFrame(scroll, fg_color="#2C3E50")
-                card.pack(fill="x", pady=5)
-                tel_fmt = self.formatar_telefone_visual(cli[0])
-                info_texto = f"{cli[1]} - {tel_fmt}\n{cli[2]}, {cli[3]} - {cli[4]}"
-                ctk.CTkLabel(card, text=info_texto, font=("Arial", 13), justify="left", anchor="w").pack(side="left", padx=10, pady=10)
-                ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B", command=lambda t=cli[0]: deletar_cliente(t)).pack(side="right", padx=5)
-                ctk.CTkButton(card, text="✏️ Editar", width=60, fg_color="#F39C12", command=lambda c=cli: modal_editar_cliente(c)).pack(side="right", padx=5)
-                ctk.CTkButton(card, text="🔔 +Lembrete", width=80, fg_color="#8E44AD", command=lambda c=cli: modal_adicionar_lembrete(c)).pack(side="right", padx=5)
-
-        def deletar_cliente(telefone):
-            if messagebox.askyesno("Excluir", "Tem certeza? Isso apaga o histórico de pedidos deste cliente!"):
-                conn = sqlite3.connect(DB_PATH)
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM clientes WHERE telefone = ?", (telefone,))
-                cursor.execute("DELETE FROM pedidos WHERE cliente_tel = ?", (telefone,))
-                cursor.execute("DELETE FROM lembretes WHERE cliente_tel = ?", (telefone,))
-                conn.commit()
-                conn.close()
-                carregar_clientes(entry_busca.get())
-
-        def modal_editar_cliente(dados_cli):
-            edit_win = ctk.CTkToplevel(top)
-            edit_win.title(f"Editar: {dados_cli[1]}")
-            edit_win.geometry("400x450")
-            edit_win.attributes("-topmost", True)
-            
-            ctk.CTkLabel(edit_win, text="Nome:").pack(anchor="w", padx=20)
-            e_nome = ctk.CTkEntry(edit_win); e_nome.insert(0, dados_cli[1]); e_nome.pack(fill="x", padx=20)
-            ctk.CTkLabel(edit_win, text="Rua:").pack(anchor="w", padx=20)
-            e_rua = ctk.CTkEntry(edit_win); e_rua.insert(0, dados_cli[2] if dados_cli[2] else ""); e_rua.pack(fill="x", padx=20)
-            ctk.CTkLabel(edit_win, text="Número:").pack(anchor="w", padx=20)
-            e_num = ctk.CTkEntry(edit_win); e_num.insert(0, dados_cli[3] if dados_cli[3] else ""); e_num.pack(fill="x", padx=20)
-            ctk.CTkLabel(edit_win, text="Bairro:").pack(anchor="w", padx=20)
-            e_bairro = ctk.CTkEntry(edit_win); e_bairro.insert(0, dados_cli[4] if dados_cli[4] else ""); e_bairro.pack(fill="x", padx=20)
-            ctk.CTkLabel(edit_win, text="Referência:").pack(anchor="w", padx=20)
-            e_ref = ctk.CTkEntry(edit_win); e_ref.insert(0, dados_cli[5] if dados_cli[5] else ""); e_ref.pack(fill="x", padx=20)
-            
-            def salvar_edicao():
-                conn = sqlite3.connect(DB_PATH)
-                cursor = conn.cursor()
-                cursor.execute("UPDATE clientes SET nome=?, rua=?, numero=?, bairro=?, referencia=? WHERE telefone=?", (e_nome.get(), e_rua.get(), e_num.get(), e_bairro.get(), e_ref.get(), dados_cli[0]))
-                conn.commit()
-                conn.close()
-                messagebox.showinfo("Sucesso", "Dados atualizados!")
-                edit_win.destroy()
-                carregar_clientes(entry_busca.get())
-
-            ctk.CTkButton(edit_win, text="SALVAR ALTERAÇÕES", command=salvar_edicao, fg_color="#27AE60").pack(pady=20)
-
-        def modal_adicionar_lembrete(dados_cli):
-            lem_win = ctk.CTkToplevel(top)
-            lem_win.title(f"Novo Lembrete: {dados_cli[1]}")
-            lem_win.geometry("400x300")
-            lem_win.attributes("-topmost", True)
-            ctk.CTkLabel(lem_win, text="Nome do Medicamento:").pack(anchor="w", padx=20, pady=(20,0))
-            e_med = ctk.CTkEntry(lem_win); e_med.pack(fill="x", padx=20)
-            ctk.CTkLabel(lem_win, text="Duração (Dias):").pack(anchor="w", padx=20)
-            e_dias = ctk.CTkEntry(lem_win); e_dias.pack(fill="x", padx=20)
-            
-            def salvar_lembrete_manual():
-                med = e_med.get()
-                dias = e_dias.get()
-                if not med or not dias.isdigit():
-                    messagebox.showwarning("Erro", "Preencha corretamente.")
-                    return
-                hoje_dt = datetime.now()
-                d_int = int(dias)
-                data_aviso = (hoje_dt + timedelta(days=d_int-3)).strftime("%Y-%m-%d")
-                conn = sqlite3.connect(DB_PATH)
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO lembretes (cliente_tel, medicamento, data_aviso, status) VALUES (?, ?, ?, 'PENDENTE')", (dados_cli[0], med, data_aviso))
-                conn.commit()
-                conn.close()
-                messagebox.showinfo("Sucesso", "Lembrete agendado!")
-                lem_win.destroy()
-                self.verificar_avisos_hoje_silencioso()
-
-            ctk.CTkButton(lem_win, text="AGENDAR", command=salvar_lembrete_manual, fg_color="#8E44AD").pack(pady=20)
-
-        btn_buscar = ctk.CTkButton(frame_busca, text="🔍", width=50, command=lambda: carregar_clientes(entry_busca.get()))
-        btn_buscar.pack(side="right")
-        carregar_clientes()
+        self.btn_backup = ctk.CTkButton(frame_pag, text="💾 FAZER BACKUP SEGURANÇA", command=self.fazer_backup_seguranca, fg_color="#8E44AD", height=30)
+        self.btn_backup.pack(fill="x", padx=20, pady=(10, 20))
 
     # ---------------- SISTEMAS ----------------
     def listar_todos_agendamentos(self):
@@ -450,7 +293,7 @@ class App(ctk.CTk):
             conn.close()
             janela.destroy()
             self.listar_todos_agendamentos()
-            self.verificar_avisos_hoje_silencioso()
+            self.verificar_avisos_hoje()
 
     def salvar_apenas_cliente(self):
         tel_limpo = self.limpar_telefone(self.entry_tel.get())
@@ -542,6 +385,7 @@ class App(ctk.CTk):
         self.entry_troco.delete(0, "end")
         self.lbl_total.configure(text="TOTAL: R$ 0.00"); self.lbl_troco.configure(text="Troco: R$ 0.00")
         self.combo_pagamento.set("Dinheiro"); self.entry_troco.configure(state="normal")
+        # COMENTADO: self.var_entregador.set("Entregador da Manhã") <--- AQUI MANTÉM O SELECIONADO
         self.chk_lembrete.deselect(); self.toggle_lembrete()
         self.entry_med_nome.delete(0, "end"); self.entry_dias_duracao.delete(0, "end")
         self.entry_tel.focus_set()
@@ -556,7 +400,22 @@ class App(ctk.CTk):
             self.lbl_troco.configure(text="JÁ PAGO (Sem Troco)")
 
     def buscar_cliente(self, event=None):
-        pass # A LÓGICA AGORA ESTÁ EM buscar_cliente_tab e enter
+        tel = self.limpar_telefone(self.entry_tel.get())
+        if not tel: return
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel,))
+            res = cursor.fetchone()
+        except: res = None
+        conn.close()
+        if res:
+            self.entry_nome.delete(0, "end"); self.entry_nome.insert(0, res[0])
+            if res[1]: self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, res[1])
+            if res[2]: self.entry_num.delete(0, "end"); self.entry_num.insert(0, res[2])
+            if res[3]: self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, res[3])
+            if res[4]: self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, res[4])
+            self.entry_tel.delete(0, "end"); self.entry_tel.insert(0, self.formatar_telefone_visual(tel))
 
     def atualizar_totais(self, event=None):
         val_prod = self.formatar_float(self.entry_val.get())
@@ -575,7 +434,6 @@ class App(ctk.CTk):
         if pago > total: self.lbl_troco.configure(text=f"TROCO: R$ {pago - total:.2f}")
         else: self.lbl_troco.configure(text="Troco: R$ 0.00")
 
-    # --- IMPRESSÃO TÉRMICA PROFISSIONAL (RAW) ---
     def imprimir_termica_raw(self, texto_cupom):
         printer_name = win32print.GetDefaultPrinter()
         
@@ -592,12 +450,10 @@ class App(ctk.CTk):
                     win32print.StartPagePrinter(hPrinter)
                     
                     if "ENTREGA RAPIDA" in texto_cupom:
-                        # Etiqueta com acentos (CP1252 para Elgin)
                         buffer = INIT + LEFT + BOLD_ON
                         buffer += texto_cupom.encode("cp1252", "replace")
                         buffer += b"\n\n\n" + CUT 
                     else:
-                        # Cupom com acentos (CP1252 para Elgin)
                         buffer = INIT + CENTER + BOLD_ON
                         buffer += bytes("FARMACIA TOTALPHARMA\n", "latin1", "replace")
                         buffer += BOLD_OFF
@@ -654,14 +510,16 @@ class App(ctk.CTk):
             pago_msg = f"R$ {total:.2f}"
 
         tel_fmt = self.formatar_telefone_visual(tel_limpo)
-        rua_wrap = textwrap.fill(f"{rua}, {num}", width=LARGURA_PAPEL)
-        bairro_wrap = textwrap.fill(f"Bairro: {bairro}", width=LARGURA_PAPEL)
+        rua_full = f"{rua}, {num}"
+        bairro_full = f"Bairro: {bairro}"
+        rua_wrap = textwrap.fill(rua_full, width=LARGURA_PAPEL)
+        bairro_wrap = textwrap.fill(bairro_full, width=LARGURA_PAPEL)
         ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
 
         texto_cupom = f"CLI: {nome}\nTEL: {tel_fmt}\n" + "-" * 32 + "\n"
         texto_cupom += f"ENTREGA:\n{rua_wrap}\n{bairro_wrap}\n\n"
         if ref: texto_cupom += f"{ref_wrap}\n"
-        texto_cupom += "-" * 32 + "\n" + f"MOTO: {self.var_entregador.get()}\n" + "-" * 32 + "\n"
+        texto_cupom += "-" * 32 + "\n" + f"MOTOBOY: {self.var_entregador.get()}\n" + "-" * 32 + "\n"
         
         v_prod = self.formatar_float(self.entry_val.get())
         v_taxa = self.formatar_float(self.entry_taxa.get())
@@ -689,7 +547,7 @@ class App(ctk.CTk):
         self.imprimir_termica_raw(texto_cupom)
         self.limpar_tela()
 
-    def verificar_avisos_hoje_silencioso(self):
+    def verificar_avisos_hoje(self):
         hoje = datetime.now().strftime("%Y-%m-%d")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -699,6 +557,7 @@ class App(ctk.CTk):
         
         if qtd > 0:
             self.btn_alertas.configure(fg_color="#E74C3C", text=f"🔔 {qtd} CLIENTES!") 
+            messagebox.showinfo("Fidelização", f"ATENÇÃO: {qtd} clientes precisam repor remédio hoje!")
         else:
             self.btn_alertas.configure(fg_color="#555", text="🔔 RECOMPRAS")
 
@@ -757,7 +616,7 @@ class App(ctk.CTk):
         conn.close()
         janela.destroy()
         self.ver_alertas_recompra()
-        self.verificar_avisos_hoje_silencioso()
+        self.verificar_avisos_hoje()
 
     def abrir_janela_relatorio(self):
         hoje = datetime.now().strftime("%Y-%m-%d")
