@@ -21,14 +21,12 @@ import ctypes
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 DDD_PADRAO = "83" 
-
-# Ajuste de largura para impressão GDI (Fonte Courier New tam 32)
-# 35 caracteres é o limite seguro para não quebrar errado na bobina de 80mm
+# Largura em caracteres para a fonte Courier New tamanho 32
 LARGURA_PAPEL = 35 
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v9.1' 
+        myappid = 'totalpharma.delivery.pdv.v9.2' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -100,7 +98,7 @@ DB_PATH = init_db()
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("TotalPharma - PDV Profissional V9.1")
+        self.title("TotalPharma - PDV Profissional V9.2")
         self.geometry("980x780")
         
         try:
@@ -138,6 +136,7 @@ class App(ctk.CTk):
         self.entry_tel = ctk.CTkEntry(frame_tel, placeholder_text="Somente números")
         self.entry_tel.pack(side="left", fill="x", expand=True, padx=(0, 5))
         
+        # Binds de busca sem travar input
         self.entry_tel.bind("<FocusOut>", self.buscar_cliente) 
         self.entry_tel.bind("<Return>", self.buscar_cliente)
         
@@ -175,8 +174,10 @@ class App(ctk.CTk):
 
         frame_botoes_cli = ctk.CTkFrame(frame_cli, fg_color="transparent")
         frame_botoes_cli.pack(fill="x", padx=15, pady=(20, 10))
+        
         self.btn_salvar_cli = ctk.CTkButton(frame_botoes_cli, text="💾 SALVAR", command=self.salvar_apenas_cliente, fg_color="#2980B9", width=100)
         self.btn_salvar_cli.pack(side="left", expand=True, fill="x", padx=(0, 5))
+        
         self.btn_print_end = ctk.CTkButton(frame_botoes_cli, text="🖨️ ETIQUETA", command=self.imprimir_apenas_endereco, fg_color="#E67E22", width=100)
         self.btn_print_end.pack(side="right", expand=True, fill="x", padx=(5, 0))
 
@@ -224,6 +225,7 @@ class App(ctk.CTk):
         self.btn_imprimir = ctk.CTkButton(frame_pag, text="✅ SALVAR TUDO E IMPRIMIR", command=self.finalizar, height=55, fg_color="#2CC985", text_color="black", font=("Arial", 15, "bold"))
         self.btn_imprimir.pack(fill="x", padx=20, pady=(15, 10))
         
+        # --- BOTÕES DE AÇÃO ---
         frame_botoes = ctk.CTkFrame(frame_pag, fg_color="transparent")
         frame_botoes.pack(fill="x", padx=20)
         self.btn_limpar = ctk.CTkButton(frame_botoes, text="LIMPAR", command=self.limpar_tela, fg_color="#C0392B", width=70)
@@ -236,38 +238,17 @@ class App(ctk.CTk):
         self.btn_futuros = ctk.CTkButton(frame_botoes, text="📅 FUTUROS", command=self.listar_todos_agendamentos, fg_color="#34495E", width=70)
         self.btn_futuros.pack(side="right", fill="x", expand=True, padx=(5, 0))
 
+        # --- GESTÃO ---
         frame_gestao = ctk.CTkFrame(frame_pag, fg_color="transparent")
         frame_gestao.pack(fill="x", padx=20, pady=(10, 20))
+        
         self.btn_backup = ctk.CTkButton(frame_gestao, text="💾 BACKUP", command=self.fazer_backup_seguranca, fg_color="#8E44AD", width=100)
         self.btn_backup.pack(side="left", expand=True, fill="x", padx=(0, 5))
+        
         self.btn_clientes = ctk.CTkButton(frame_gestao, text="👥 CLIENTES", command=self.abrir_gestao_clientes, fg_color="#16A085", width=100)
         self.btn_clientes.pack(side="right", expand=True, fill="x", padx=(5, 0))
 
-    def buscar_cliente(self, event=None):
-        tel_bruto = self.entry_tel.get()
-        if not tel_bruto.strip(): return
-        tel_limpo = self.limpar_telefone(tel_bruto)
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        try:
-            cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel_limpo,))
-            res = cursor.fetchone()
-        except: res = None
-        conn.close()
-        if res:
-            self.entry_nome.delete(0, "end"); self.entry_nome.insert(0, res[0])
-            if res[1]: self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, res[1])
-            if res[2]: self.entry_num.delete(0, "end"); self.entry_num.insert(0, res[2])
-            if res[3]: self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, res[3])
-            if res[4]: self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, res[4])
-            if self.entry_tel.get() != self.formatar_telefone_visual(tel_limpo):
-                self.entry_tel.delete(0, "end")
-                self.entry_tel.insert(0, self.formatar_telefone_visual(tel_limpo))
-            self.after(10, lambda: self.entry_val.focus_set())
-        else:
-            self.entry_nome.focus_set()
-
-    # --- AUXILIARES ---
+    # ---------------- FUNÇÕES DE SUPORTE ----------------
     def limpar_telefone(self, tel):
         numeros = "".join(filter(str.isdigit, tel))
         tam = len(numeros)
@@ -313,6 +294,31 @@ class App(ctk.CTk):
             self.entry_troco.configure(state="disabled")
             self.lbl_troco.configure(text="JÁ PAGO (Sem Troco)")
 
+    def buscar_cliente(self, event=None):
+        tel_bruto = self.entry_tel.get()
+        if not tel_bruto.strip(): return
+        tel_limpo = self.limpar_telefone(tel_bruto)
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel_limpo,))
+            res = cursor.fetchone()
+        except: res = None
+        conn.close()
+        
+        if res:
+            self.entry_nome.delete(0, "end"); self.entry_nome.insert(0, res[0])
+            if res[1]: self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, res[1])
+            if res[2]: self.entry_num.delete(0, "end"); self.entry_num.insert(0, res[2])
+            if res[3]: self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, res[3])
+            if res[4]: self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, res[4])
+            if self.entry_tel.get() != self.formatar_telefone_visual(tel_limpo):
+                self.entry_tel.delete(0, "end")
+                self.entry_tel.insert(0, self.formatar_telefone_visual(tel_limpo))
+            self.after(10, lambda: self.entry_val.focus_set())
+        else:
+            self.entry_nome.focus_set()
+
     def atualizar_totais(self, event=None):
         val_prod = self.formatar_float(self.entry_val.get())
         val_taxa = self.formatar_float(self.entry_taxa.get())
@@ -330,25 +336,82 @@ class App(ctk.CTk):
         if pago > total: self.lbl_troco.configure(text=f"TROCO: R$ {pago - total:.2f}")
         else: self.lbl_troco.configure(text="Troco: R$ 0.00")
 
-    # --- IMPRESSÃO GDI (SEGURA E COM ACENTOS) ---
+    # --- FUNÇÃO QUE FALTAVA: BACKUP ---
+    def fazer_backup_seguranca(self):
+        try:
+            db_origem = DB_PATH
+            if not os.path.exists(db_origem):
+                messagebox.showerror("Erro", "Banco de dados não encontrado.")
+                return
+            hoje_str = datetime.now().strftime("%Y-%m-%d")
+            nome_sugerido = f"backup_totalpharma_{hoje_str}.db"
+            destino = filedialog.asksaveasfilename(title="Salvar Backup de Segurança", initialfile=nome_sugerido, defaultextension=".db", filetypes=[("Arquivo de Banco de Dados", "*.db")])
+            if destino:
+                shutil.copy2(db_origem, destino)
+                messagebox.showinfo("Sucesso", f"Backup realizado com sucesso!\n\nSalvo em:\n{destino}")
+        except Exception as e:
+            messagebox.showerror("Erro Backup", f"Não foi possível fazer o backup:\n{e}")
+
+    # --- FUNÇÃO QUE FALTAVA: SALVAR APENAS CLIENTE ---
+    def salvar_apenas_cliente(self):
+        tel_limpo = self.limpar_telefone(self.entry_tel.get())
+        nome = self.entry_nome.get().strip()
+        if not tel_limpo or not nome:
+            messagebox.showwarning("Aviso", "Para cadastrar, preencha pelo menos Telefone e Nome.")
+            return
+        rua = self.entry_rua.get().strip()
+        num = self.entry_num.get().strip()
+        bairro = self.entry_bairro.get().strip()
+        ref = self.entry_ref.get().strip()
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("INSERT OR REPLACE INTO clientes (telefone, nome, rua, numero, bairro, referencia) VALUES (?, ?, ?, ?, ?, ?)", 
+                           (tel_limpo, nome, rua, num, bairro, ref))
+            conn.commit()
+            messagebox.showinfo("Sucesso", f"Cliente {nome} salvo/atualizado com sucesso!")
+        except Exception as e:
+            messagebox.showerror("Erro BD", str(e))
+        finally: conn.close()
+
+    # --- FUNÇÃO QUE FALTAVA: IMPRIMIR ETIQUETA ---
+    def imprimir_apenas_endereco(self):
+        tel_limpo = self.limpar_telefone(self.entry_tel.get())
+        nome = self.entry_nome.get().strip()
+        if not tel_limpo or not nome:
+            messagebox.showwarning("Aviso", "Preencha dados do cliente.")
+            return
+        rua = self.entry_rua.get().strip()
+        num = self.entry_num.get().strip()
+        bairro = self.entry_bairro.get().strip()
+        ref = self.entry_ref.get().strip()
+        tel_fmt = self.formatar_telefone_visual(tel_limpo)
+        rua_wrap = textwrap.fill(f"{rua}, {num}", width=LARGURA_PAPEL)
+        bairro_wrap = textwrap.fill(f"Bairro: {bairro}", width=LARGURA_PAPEL)
+        ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
+
+        texto = "-" * 32 + "\n       ENTREGA RAPIDA\n" + "-" * 32 + "\n"
+        texto += f"CLI: {nome}\nTEL: {tel_fmt}\n" + "-" * 32 + "\n"
+        texto += f"{rua_wrap}\n{bairro_wrap}\n\n"
+        if ref: texto += f"{ref_wrap}\n"
+        texto += "-" * 32 + "\n" + f"MOTO: {self.var_entregador.get()}\n" + "-" * 32 + "\n"
+        self.imprimir_via_windows_gdi(texto)
+
+    # --- IMPRESSÃO GDI ---
     def imprimir_via_windows_gdi(self, texto_cupom):
         try:
             hDC = win32ui.CreateDC()
             hDC.CreatePrinterDC(win32print.GetDefaultPrinter())
             hDC.StartDoc("Cupom TotalPharma")
             hDC.StartPage()
-            
             font_dict = {'name': 'Courier New', 'height': 32, 'weight': 600} 
             font = win32ui.CreateFont(font_dict)
             hDC.SelectObject(font)
-            
             y = 50
             for linha in texto_cupom.split("\n"):
                 hDC.TextOut(10, y, linha)
                 y += 32
-            
             hDC.TextOut(10, y + 50, ".")
-            
             hDC.EndPage()
             hDC.EndDoc()
             hDC.DeleteDC()
@@ -425,7 +488,6 @@ TROCO: {troco_msg}
 
    Obrigado pela preferencia!
 """
-        
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         try:
@@ -460,12 +522,7 @@ TROCO: {troco_msg}
         hoje = datetime.now().strftime("%Y-%m-%d")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT l.id, c.nome, c.telefone, l.medicamento, l.data_aviso 
-            FROM lembretes l
-            JOIN clientes c ON l.cliente_tel = c.telefone
-            WHERE l.data_aviso <= ? AND l.status = 'PENDENTE'
-        """, (hoje,))
+        cursor.execute("SELECT l.id, c.nome, c.telefone, l.medicamento, l.data_aviso FROM lembretes l JOIN clientes c ON l.cliente_tel = c.telefone WHERE l.data_aviso <= ? AND l.status = 'PENDENTE'", (hoje,))
         dados = cursor.fetchall()
         conn.close()
 
@@ -492,7 +549,6 @@ TROCO: {troco_msg}
             btn_zap = ctk.CTkButton(card, text="💬 WHATSAPP", width=120, fg_color="#25D366", text_color="white",
                                     command=lambda n=nome, t=tel, m=med: self.abrir_whatsapp_recompra(n, t, m))
             btn_zap.pack(side="right", padx=5)
-
             btn_ok = ctk.CTkButton(card, text="✅ JÁ RESOLVI", width=120, fg_color="#27AE60", 
                                    command=lambda i=id_lembrete, t=top: self.dar_baixa_lembrete(i, t))
             btn_ok.pack(side="right", padx=5)
@@ -579,6 +635,7 @@ TROCO: {troco_msg}
         except Exception as e:
             messagebox.showerror("Erro Exportação", str(e))
 
+    # --- GESTÃO DE CLIENTES (FUNÇÃO QUE FALTAVA) ---
     def abrir_gestao_clientes(self):
         top = ctk.CTkToplevel(self)
         top.title("Gestão de Clientes")
@@ -761,51 +818,6 @@ TROCO: {troco_msg}
             janela.destroy()
             self.listar_todos_agendamentos()
             self.verificar_avisos_hoje_silencioso()
-
-    # ---------------- LÓGICA DE SALVAR APENAS CLIENTE ----------------
-    def salvar_apenas_cliente(self):
-        tel_limpo = self.limpar_telefone(self.entry_tel.get())
-        nome = self.entry_nome.get().strip()
-        if not tel_limpo or not nome:
-            messagebox.showwarning("Aviso", "Para cadastrar, preencha pelo menos Telefone e Nome.")
-            return
-        rua = self.entry_rua.get().strip()
-        num = self.entry_num.get().strip()
-        bairro = self.entry_bairro.get().strip()
-        ref = self.entry_ref.get().strip()
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        try:
-            cursor.execute("INSERT OR REPLACE INTO clientes (telefone, nome, rua, numero, bairro, referencia) VALUES (?, ?, ?, ?, ?, ?)", 
-                           (tel_limpo, nome, rua, num, bairro, ref))
-            conn.commit()
-            messagebox.showinfo("Sucesso", f"Cliente {nome} salvo/atualizado com sucesso!")
-        except Exception as e:
-            messagebox.showerror("Erro BD", str(e))
-        finally: conn.close()
-
-    # ---------------- LÓGICA DE IMPRIMIR APENAS ENDEREÇO ----------------
-    def imprimir_apenas_endereco(self):
-        tel_limpo = self.limpar_telefone(self.entry_tel.get())
-        nome = self.entry_nome.get().strip()
-        if not tel_limpo or not nome:
-            messagebox.showwarning("Aviso", "Preencha dados do cliente.")
-            return
-        rua = self.entry_rua.get().strip()
-        num = self.entry_num.get().strip()
-        bairro = self.entry_bairro.get().strip()
-        ref = self.entry_ref.get().strip()
-        tel_fmt = self.formatar_telefone_visual(tel_limpo)
-        rua_wrap = textwrap.fill(f"{rua}, {num}", width=LARGURA_PAPEL)
-        bairro_wrap = textwrap.fill(f"Bairro: {bairro}", width=LARGURA_PAPEL)
-        ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
-
-        texto = "-" * 32 + "\n       ENTREGA RAPIDA\n" + "-" * 32 + "\n"
-        texto += f"CLI: {nome}\nTEL: {tel_fmt}\n" + "-" * 32 + "\n"
-        texto += f"{rua_wrap}\n{bairro_wrap}\n\n"
-        if ref: texto += f"{ref_wrap}\n"
-        texto += "-" * 32 + "\n" + f"MOTO: {self.var_entregador.get()}\n" + "-" * 32 + "\n"
-        self.imprimir_via_windows_gdi(texto)
 
 if __name__ == "__main__":
     app = App()
