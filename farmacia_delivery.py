@@ -20,7 +20,7 @@ import ctypes
 # -------------- CONFIGURAÇÕES --------------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
-DDD_PADRAO = "87" 
+DDD_PADRAO = "83" 
 # AJUSTE: Reduzi para 30 para evitar cortar na sua impressora térmica
 LARGURA_PAPEL = 30 
 
