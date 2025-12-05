@@ -20,33 +20,25 @@ import ctypes
 # -------------- CONFIGURAÇÕES --------------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
-
-DDD_PADRAO = "83" 
-# Largura em caracteres para a fonte Courier New tamanho 32
-LARGURA_PAPEL = 35 
-
+DDD_PADRAO = "87" 
+# AJUSTE: Reduzi para 30 para evitar cortar na sua impressora térmica
+LARGURA_PAPEL = 30 
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v9.4' 
+        myappid = 'totalpharma.delivery.pdv.v9.7' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-    except:
-        pass
-
+    except: pass
 
 configurar_identidade_windows()
-
 
 def get_app_path():
     app_data = os.getenv('APPDATA')
     pasta_app = os.path.join(app_data, "TotalPharma")
     if not os.path.exists(pasta_app):
-        try:
-            os.makedirs(pasta_app)
-        except:
-            pass
+        try: os.makedirs(pasta_app)
+        except: pass
     return pasta_app
-
 
 def init_db():
     try:
@@ -55,7 +47,6 @@ def init_db():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # Tabela Clientes
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS clientes (
                 telefone TEXT PRIMARY KEY,
@@ -67,7 +58,6 @@ def init_db():
             )
         """)
 
-        # Tabela Histórico de Endereços
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS historico_enderecos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,7 +71,6 @@ def init_db():
             )
         """)
 
-        # Tabela Pedidos
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS pedidos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,7 +84,6 @@ def init_db():
             )
         """)
         
-        # Tabela Lembretes
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS lembretes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,39 +95,30 @@ def init_db():
             )
         """)
         
-        # Migrações para garantir compatibilidade
         cols_cli = ["rua", "numero", "bairro", "referencia"]
         for c in cols_cli:
-            try:
-                cursor.execute(f"ALTER TABLE clientes ADD COLUMN {c} TEXT")
-            except:
-                pass
+            try: cursor.execute(f"ALTER TABLE clientes ADD COLUMN {c} TEXT")
+            except: pass
             
-        try:
-            cursor.execute("ALTER TABLE pedidos ADD COLUMN metodo_pagamento TEXT")
-        except:
-            pass
+        try: cursor.execute("ALTER TABLE pedidos ADD COLUMN metodo_pagamento TEXT")
+        except: pass
         
-        try:
-            cursor.execute("ALTER TABLE pedidos ADD COLUMN detalhes_pagamento TEXT")
-        except:
-            pass
+        try: cursor.execute("ALTER TABLE pedidos ADD COLUMN detalhes_pagamento TEXT")
+        except: pass
 
         conn.commit()
         conn.close()
         return db_path
-    except Exception:
+    except Exception as e:
         return "dados_farmacia.db"
 
-
 DB_PATH = init_db()
-
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("TotalPharma - PDV Profissional V9.4")
-        self.geometry("980x820") 
+        self.title("TotalPharma - PDV Profissional V9.7")
+        self.geometry("980x880") # Aumentei um pouco para caber tudo confortavelmente
         
         try:
             if getattr(sys, 'frozen', False):
@@ -150,8 +129,7 @@ class App(ctk.CTk):
             if os.path.exists(caminho_icone):
                 self.iconbitmap(caminho_icone)
                 self.wm_iconbitmap(caminho_icone)
-        except:
-            pass 
+        except: pass 
         
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
@@ -163,7 +141,6 @@ class App(ctk.CTk):
         self.limpar_tela()
         self.after(1000, self.verificar_avisos_hoje_silencioso)
 
-    # ---------------- UI COLUNA CLIENTE ----------------
     def criar_coluna_cliente(self):
         frame_cli = ctk.CTkFrame(self)
         frame_cli.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
@@ -177,7 +154,6 @@ class App(ctk.CTk):
         
         self.entry_tel = ctk.CTkEntry(frame_tel, placeholder_text="Somente números")
         self.entry_tel.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        
         self.entry_tel.bind("<FocusOut>", self.buscar_cliente) 
         self.entry_tel.bind("<Return>", self.buscar_cliente)
         
@@ -188,7 +164,7 @@ class App(ctk.CTk):
         self.entry_nome = ctk.CTkEntry(frame_cli)
         self.entry_nome.pack(fill="x", padx=15, pady=(0, 10))
 
-        # --- Cabeçalho Endereço com Botão Histórico ---
+        # --- Botão Histórico ---
         frame_lbl_end = ctk.CTkFrame(frame_cli, fg_color="transparent")
         frame_lbl_end.pack(fill="x", padx=15, pady=(10, 5))
         ctk.CTkLabel(frame_lbl_end, text="Endereço de Entrega:", text_color="#3B8ED0", font=("Arial", 13, "bold")).pack(side="left")
@@ -196,7 +172,6 @@ class App(ctk.CTk):
         self.btn_historico = ctk.CTkButton(frame_lbl_end, text="📍 Histórico", width=80, height=20, 
                                            fg_color="#F39C12", font=("Arial", 10), command=self.abrir_historico_enderecos)
         self.btn_historico.pack(side="right")
-        # -----------------------------------------------
         
         frame_end_1 = ctk.CTkFrame(frame_cli, fg_color="transparent")
         frame_end_1.pack(fill="x", padx=15)
@@ -230,7 +205,6 @@ class App(ctk.CTk):
         self.btn_print_end = ctk.CTkButton(frame_botoes_cli, text="🖨️ ETIQUETA", command=self.imprimir_apenas_endereco, fg_color="#E67E22", width=100)
         self.btn_print_end.pack(side="right", expand=True, fill="x", padx=(5, 0))
 
-    # ---------------- UI COLUNA PAGAMENTO ----------------
     def criar_coluna_pagamento(self):
         frame_pag = ctk.CTkFrame(self)
         frame_pag.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
@@ -260,16 +234,18 @@ class App(ctk.CTk):
         
         ctk.CTkFrame(frame_pag, height=2, fg_color="gray").pack(fill="x", padx=20, pady=5)
 
-        # ✅ SEÇÃO DE PAGAMENTO AGRUPADA (corrige layout do misto)
-        self.frame_sec_pag = ctk.CTkFrame(frame_pag, fg_color="transparent")
-        self.frame_sec_pag.pack(fill="x", padx=20, pady=(0, 5))
+        # ==========================================================
+        # CAIXA BLINDADA DE PAGAMENTO (Tudo fica aqui dentro)
+        # ==========================================================
+        self.frame_container_pagamentos = ctk.CTkFrame(frame_pag, fg_color="transparent")
+        self.frame_container_pagamentos.pack(fill="x", padx=10, pady=5)
 
-        self.chk_pagamento_duplo = ctk.CTkCheckBox(self.frame_sec_pag, text="Pagamento Misto (2 Formas)", command=self.toggle_pagamento_duplo)
-        self.chk_pagamento_duplo.pack(anchor="w", pady=(0, 6))
+        self.chk_pagamento_duplo = ctk.CTkCheckBox(self.frame_container_pagamentos, text="Pagamento Misto (2 Formas)", command=self.toggle_pagamento_duplo)
+        self.chk_pagamento_duplo.pack(pady=5)
 
-        # Forma 1
-        self.frame_pag1 = ctk.CTkFrame(self.frame_sec_pag, fg_color="transparent")
-        self.frame_pag1.pack(fill="x", pady=(0, 5))
+        # Pagamento 1 (Sempre visível)
+        self.frame_pag1 = ctk.CTkFrame(self.frame_container_pagamentos, fg_color="transparent")
+        self.frame_pag1.pack(fill="x", padx=10)
         
         self.combo_pag1 = ctk.CTkComboBox(self.frame_pag1, values=["Dinheiro", "Pix", "Cartão"], command=self.mudou_forma_pag1, width=110)
         self.combo_pag1.pack(side="left", padx=(0,5))
@@ -281,9 +257,10 @@ class App(ctk.CTk):
         self.entry_val_pag1.pack(side="right")
         self.entry_val_pag1.bind("<KeyRelease>", self.calcular_troco_dinamico)
 
-        # Forma 2 (Oculta por padrão)
-        self.frame_pag2 = ctk.CTkFrame(self.frame_sec_pag, fg_color="transparent")
-        
+        # Pagamento 2 (Oculto, mas filho do container)
+        self.frame_pag2 = ctk.CTkFrame(self.frame_container_pagamentos, fg_color="transparent")
+        # Ele será packado via código no toggle_pagamento_duplo
+
         self.combo_pag2 = ctk.CTkComboBox(self.frame_pag2, values=["Dinheiro", "Pix", "Cartão"], command=self.mudou_forma_pag2, width=110)
         self.combo_pag2.pack(side="left", padx=(0,5))
         self.combo_pag2.set("Cartão")
@@ -294,16 +271,20 @@ class App(ctk.CTk):
         self.entry_val_pag2.pack(side="right")
         self.entry_val_pag2.bind("<FocusIn>", self.auto_completar_restante)
 
-        # Troco
-        ctk.CTkLabel(frame_pag, text="Valor Entregue (Troco):").pack(anchor="w", padx=20, pady=(10,0))
-        self.entry_troco = ctk.CTkEntry(frame_pag, placeholder_text="Dinheiro entregue")
-        self.entry_troco.pack(fill="x", padx=20)
+        # Troco (Filho do container, sempre no final dele)
+        self.frame_troco = ctk.CTkFrame(self.frame_container_pagamentos, fg_color="transparent")
+        self.frame_troco.pack(fill="x", padx=10, pady=(10,0))
+        
+        ctk.CTkLabel(self.frame_troco, text="Valor Entregue (Troco):").pack(anchor="w")
+        self.entry_troco = ctk.CTkEntry(self.frame_troco, placeholder_text="Dinheiro entregue")
+        self.entry_troco.pack(fill="x")
         self.entry_troco.bind("<KeyRelease>", self.calcular_troco_dinamico)
 
-        self.lbl_troco = ctk.CTkLabel(frame_pag, text="Troco: R$ 0.00", text_color="#F1C40F", font=("Arial", 18, "bold"))
+        self.lbl_troco = ctk.CTkLabel(self.frame_container_pagamentos, text="Troco: R$ 0.00", text_color="#F1C40F", font=("Arial", 18, "bold"))
         self.lbl_troco.pack(pady=5)
+        # ==========================================================
 
-        # -------------------------------
+        # --- ITENS FIXOS ABAIXO DO CONTAINER DE PAGAMENTO ---
         self.frame_fidelidade = ctk.CTkFrame(frame_pag, fg_color="#333333")
         self.frame_fidelidade.pack(fill="x", padx=20, pady=5)
         self.chk_lembrete = ctk.CTkCheckBox(self.frame_fidelidade, text="Agendar Lembrete (Remédio Controlado)", command=self.toggle_lembrete)
@@ -311,6 +292,7 @@ class App(ctk.CTk):
         self.entry_med_nome = ctk.CTkEntry(self.frame_fidelidade, placeholder_text="Nome do Remédio")
         self.entry_dias_duracao = ctk.CTkEntry(self.frame_fidelidade, placeholder_text="Dura quantos dias?", width=120)
 
+        # Botão IMPRIMIR (Sempre abaixo de tudo)
         self.btn_imprimir = ctk.CTkButton(frame_pag, text="✅ SALVAR E IMPRIMIR", command=self.finalizar, height=50, fg_color="#2CC985", text_color="black", font=("Arial", 15, "bold"))
         self.btn_imprimir.pack(fill="x", padx=20, pady=(15, 10))
         
@@ -337,10 +319,11 @@ class App(ctk.CTk):
         self.btn_clientes = ctk.CTkButton(frame_gestao, text="👥 CLIENTES", command=self.abrir_gestao_clientes, fg_color="#16A085", width=100)
         self.btn_clientes.pack(side="right", expand=True, fill="x", padx=(5, 0))
 
-    # ---------------- LÓGICA DE PAGAMENTO ----------------
+    # ---------------- LÓGICA DE PAGAMENTO E HISTÓRICO ----------------
     def toggle_pagamento_duplo(self):
         if self.chk_pagamento_duplo.get() == 1:
-            self.frame_pag2.pack(fill="x", pady=(0, 5))
+            # Garante que apareça ANTES do troco, mas dentro do container
+            self.frame_pag2.pack(fill="x", padx=10, pady=(5,0), before=self.frame_troco)
             self.entry_val_pag1.configure(placeholder_text="Valor Parc. 1")
         else:
             self.frame_pag2.pack_forget()
@@ -349,20 +332,15 @@ class App(ctk.CTk):
     def mudou_forma_pag1(self, escolha):
         if escolha == "Cartão":
             self.combo_parcelas1.pack(side="left", padx=5)
-            self.entry_troco.delete(0, "end")
-            self.entry_troco.configure(state="disabled")
+            self.entry_troco.delete(0, "end"); self.entry_troco.configure(state="disabled")
         else:
             self.combo_parcelas1.pack_forget()
-            if escolha == "Dinheiro":
-                self.entry_troco.configure(state="normal")
-            else:
-                self.entry_troco.configure(state="disabled")
+            if escolha == "Dinheiro": self.entry_troco.configure(state="normal")
+            else: self.entry_troco.configure(state="disabled")
 
     def mudou_forma_pag2(self, escolha):
-        if escolha == "Cartão":
-            self.combo_parcelas2.pack(side="left", padx=5)
-        else:
-            self.combo_parcelas2.pack_forget()
+        if escolha == "Cartão": self.combo_parcelas2.pack(side="left", padx=5)
+        else: self.combo_parcelas2.pack_forget()
 
     def auto_completar_restante(self, event=None):
         try:
@@ -372,8 +350,7 @@ class App(ctk.CTk):
             if restante > 0:
                 self.entry_val_pag2.delete(0, "end")
                 self.entry_val_pag2.insert(0, f"{restante:.2f}")
-        except:
-            pass
+        except: pass
 
     def calcular_troco_dinamico(self, event=None):
         total = self.atualizar_totais()
@@ -384,12 +361,10 @@ class App(ctk.CTk):
         
         if self.chk_pagamento_duplo.get() == 0:
             if forma1 == "Dinheiro":
-                if pago_dinheiro > total:
-                    self.lbl_troco.configure(text=f"TROCO: R$ {pago_dinheiro - total:.2f}")
-                else:
-                    self.lbl_troco.configure(text="Troco: R$ 0.00")
+                if pago_dinheiro > total: self.lbl_troco.configure(text=f"TROCO: R$ {pago_dinheiro - total:.2f}")
+                else: self.lbl_troco.configure(text="Troco: R$ 0.00")
             else:
-                self.lbl_troco.configure(text="SEM TROCO")
+                 self.lbl_troco.configure(text="SEM TROCO")
         else:
             forma2 = self.combo_pag2.get()
             val2 = self.formatar_float(self.entry_val_pag2.get())
@@ -399,118 +374,111 @@ class App(ctk.CTk):
                 return
 
             if forma1 == "Dinheiro" or forma2 == "Dinheiro":
-                if pago_dinheiro > 0:
-                    devido_em_dinheiro = 0
-                    if forma1 == "Dinheiro":
-                        devido_em_dinheiro += val1
-                    if forma2 == "Dinheiro":
-                        devido_em_dinheiro += val2
+                 if pago_dinheiro > 0: 
+                     devido_em_dinheiro = 0
+                     if forma1 == "Dinheiro": devido_em_dinheiro += val1
+                     if forma2 == "Dinheiro": devido_em_dinheiro += val2
                      
-                    if pago_dinheiro > devido_em_dinheiro:
-                        self.lbl_troco.configure(text=f"TROCO: R$ {pago_dinheiro - devido_em_dinheiro:.2f}")
-                    else:
-                        self.lbl_troco.configure(text="Troco: R$ 0.00")
+                     if pago_dinheiro > devido_em_dinheiro:
+                         self.lbl_troco.configure(text=f"TROCO: R$ {pago_dinheiro - devido_em_dinheiro:.2f}")
+                     else:
+                         self.lbl_troco.configure(text="Troco: R$ 0.00")
 
-    # ---------------- FUNÇÕES DE IMPRESSÃO / WRAP ----------------
-    def wrap_multiline(self, text, width=LARGURA_PAPEL):
-        if not text:
-            return ""
-        linhas_saida = []
-        for linha in str(text).splitlines():
-            if not linha.strip():
-                linhas_saida.append("")
-                continue
-            partes = textwrap.wrap(
-                linha,
-                width=width,
-                break_long_words=True,
-                break_on_hyphens=False
-            )
-            if not partes:
-                linhas_saida.append("")
-            else:
-                linhas_saida.extend(partes)
-        return "\n".join(linhas_saida)
-
-    def imprimir_via_windows_gdi(self, texto_cupom):
-        try:
-            # ✅ wrap global + respiro final
-            texto_cupom = self.wrap_multiline(texto_cupom, LARGURA_PAPEL)
-            texto_cupom = texto_cupom.rstrip() + "\n\n\n\n"
-
-            hDC = win32ui.CreateDC()
-            hDC.CreatePrinterDC(win32print.GetDefaultPrinter())
-            hDC.StartDoc("Cupom TotalPharma")
-            hDC.StartPage()
-
-            font_dict = {'name': 'Courier New', 'height': 32, 'weight': 600} 
-            font = win32ui.CreateFont(font_dict)
-            hDC.SelectObject(font)
-
-            y = 50
-            line_height = 32
-
-            for linha in texto_cupom.split("\n"):
-                hDC.TextOut(10, y, linha)
-                y += line_height
-
-            hDC.TextOut(10, y + 20, ".")
-            hDC.EndPage()
-            hDC.EndDoc()
-            hDC.DeleteDC()
-        except Exception as e:
-            messagebox.showerror("Erro GDI", f"Erro na impressão:\n{e}")
-
-    # ---------------- HISTÓRICO DE ENDEREÇOS ----------------
+    # --- HISTÓRICO DE ENDEREÇOS (Com adição manual) ---
     def abrir_historico_enderecos(self):
         tel_limpo = self.limpar_telefone(self.entry_tel.get())
         if not tel_limpo:
             messagebox.showwarning("Aviso", "Digite um telefone primeiro.")
             return
             
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT rua, numero, bairro, referencia, ultimo_uso "
-            "FROM historico_enderecos "
-            "WHERE telefone_cliente = ? "
-            "ORDER BY ultimo_uso DESC",
-            (tel_limpo,)
-        )
-        enderecos = cursor.fetchall()
-        conn.close()
-        
-        if not enderecos:
-            messagebox.showinfo("Vazio", "Nenhum histórico de endereço para este cliente.")
-            return
-            
         top = ctk.CTkToplevel(self)
         top.title("Histórico de Endereços")
-        top.geometry("500x400")
+        top.geometry("550x500")
         top.attributes("-topmost", True)
+        
+        frame_topo = ctk.CTkFrame(top)
+        frame_topo.pack(fill="x", padx=10, pady=10)
+        ctk.CTkLabel(frame_topo, text="Endereços Antigos", font=("Arial", 14, "bold")).pack(side="left")
+        ctk.CTkButton(frame_topo, text="➕ NOVO ENDEREÇO", width=140, fg_color="#3498DB", 
+                      command=lambda: self.adicionar_endereco_manual(tel_limpo, top)).pack(side="right")
         
         scroll = ctk.CTkScrollableFrame(top)
         scroll.pack(fill="both", expand=True, padx=10, pady=10)
         
+        self.carregar_lista_historico(scroll, tel_limpo, top)
+
+    def carregar_lista_historico(self, scroll_frame, tel_limpo, top_window):
+        for widget in scroll_frame.winfo_children(): widget.destroy()
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT rua, numero, bairro, referencia, ultimo_uso FROM historico_enderecos WHERE telefone_cliente = ? ORDER BY ultimo_uso DESC", (tel_limpo,))
+        enderecos = cursor.fetchall()
+        conn.close()
+        
+        if not enderecos:
+            ctk.CTkLabel(scroll_frame, text="Nenhum endereço salvo.").pack(pady=20)
+            return
+            
         def usar_endereco(dados):
             self.entry_rua.delete(0, "end"); self.entry_rua.insert(0, dados[0])
             self.entry_num.delete(0, "end"); self.entry_num.insert(0, dados[1])
             self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, dados[2])
             self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, dados[3])
-            top.destroy()
-            
+            top_window.destroy()
+
         for end in enderecos:
-            card = ctk.CTkFrame(scroll, fg_color="#333")
+            card = ctk.CTkFrame(scroll_frame, fg_color="#333")
             card.pack(fill="x", pady=5)
             texto = f"{end[0]}, {end[1]}\nBairro: {end[2]}\nRef: {end[3]}"
             ctk.CTkLabel(card, text=texto, justify="left", anchor="w").pack(side="left", padx=10, pady=5)
             ctk.CTkButton(card, text="USAR ESTE", width=80, fg_color="#27AE60", command=lambda e=end: usar_endereco(e)).pack(side="right", padx=10)
 
-    # ---------------- TELA DE CLIENTES + RECOMPRAS ----------------
+    def adicionar_endereco_manual(self, tel_limpo, janela_pai):
+        add_win = ctk.CTkToplevel(janela_pai)
+        add_win.title("Adicionar Endereço")
+        add_win.geometry("400x350")
+        add_win.attributes("-topmost", True)
+        add_win.lift(); add_win.focus_force(); add_win.grab_set()
+        
+        ctk.CTkLabel(add_win, text="Rua:").pack(anchor="w", padx=20, pady=(20,0))
+        e_rua = ctk.CTkEntry(add_win); e_rua.pack(fill="x", padx=20)
+        ctk.CTkLabel(add_win, text="Número:").pack(anchor="w", padx=20)
+        e_num = ctk.CTkEntry(add_win); e_num.pack(fill="x", padx=20)
+        ctk.CTkLabel(add_win, text="Bairro:").pack(anchor="w", padx=20)
+        e_bairro = ctk.CTkEntry(add_win); e_bairro.pack(fill="x", padx=20)
+        ctk.CTkLabel(add_win, text="Referência:").pack(anchor="w", padx=20)
+        e_ref = ctk.CTkEntry(add_win); e_ref.pack(fill="x", padx=20)
+        
+        def salvar_novo():
+            r, n, b, ref = e_rua.get(), e_num.get(), e_bairro.get(), e_ref.get()
+            if not r or not b:
+                messagebox.showwarning("Erro", "Rua e Bairro são obrigatórios.")
+                return
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO historico_enderecos (telefone_cliente, rua, numero, bairro, referencia, ultimo_uso) VALUES (?, ?, ?, ?, ?, ?)",
+                            (tel_limpo, r, n, b, ref, datetime.now().strftime("%Y-%m-%d")))
+            conn.commit()
+            conn.close()
+            messagebox.showinfo("Sucesso", "Endereço adicionado!")
+            add_win.destroy()
+            
+            scroll_widget = None
+            for widget in janela_pai.winfo_children():
+                if isinstance(widget, ctk.CTkScrollableFrame):
+                    scroll_widget = widget
+                    break
+            if scroll_widget:
+                self.carregar_lista_historico(scroll_widget, tel_limpo, janela_pai)
+
+        ctk.CTkButton(add_win, text="SALVAR", command=salvar_novo, fg_color="#2ECC71").pack(pady=20)
+
+    # --- GESTÃO DE CLIENTES ---
     def abrir_gestao_clientes(self):
         top = ctk.CTkToplevel(self)
         top.title("Buscar Cliente / Iniciar Pedido")
-        top.geometry("900x650")
+        top.geometry("950x650") 
         top.attributes("-topmost", True)
         top.lift(); top.focus_force(); top.grab_set()
 
@@ -535,6 +503,37 @@ class App(ctk.CTk):
             if dados_cli[5]: self.entry_ref.insert(0, dados_cli[5])
             top.destroy()
             self.entry_val.focus_set() 
+
+        def carregar_clientes(termo=""):
+            for widget in scroll.winfo_children(): widget.destroy()
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            if termo:
+                t = f"%{termo}%"
+                cursor.execute("SELECT * FROM clientes WHERE nome LIKE ? OR telefone LIKE ? ORDER BY nome", (t, t))
+            else:
+                cursor.execute("SELECT * FROM clientes ORDER BY nome LIMIT 50")
+            clientes = cursor.fetchall()
+            conn.close()
+
+            if not clientes:
+                ctk.CTkLabel(scroll, text="Nenhum cliente encontrado.").pack(pady=20)
+                return
+
+            for cli in clientes:
+                card = ctk.CTkFrame(scroll, fg_color="#2C3E50")
+                card.pack(fill="x", pady=5)
+                tel_fmt = self.formatar_telefone_visual(cli[0])
+                info_texto = f"{cli[1]} - {tel_fmt}\n{cli[2]}, {cli[3]} - {cli[4]}"
+                ctk.CTkLabel(card, text=info_texto, font=("Arial", 13), justify="left", anchor="w").pack(side="left", padx=10, pady=10)
+                
+                # Botão Iniciar Pedido
+                ctk.CTkButton(card, text="✅ NOVO PEDIDO", font=("Arial", 12, "bold"), width=120, fg_color="#2ECC71", 
+                              text_color="black", command=lambda c=cli: usar_cliente_para_pedido(c)).pack(side="right", padx=10)
+
+                ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B", command=lambda t=cli[0]: deletar_cliente(t)).pack(side="right", padx=5)
+                ctk.CTkButton(card, text="✏️", width=40, fg_color="#F39C12", command=lambda c=cli: modal_editar_cliente(c)).pack(side="right", padx=5)
+                ctk.CTkButton(card, text="🔔", width=40, fg_color="#8E44AD", command=lambda c=cli: modal_adicionar_lembrete(c)).pack(side="right", padx=5)
 
         def deletar_cliente(telefone):
             if messagebox.askyesno("Excluir", "Tem certeza? Isso apaga o histórico de pedidos deste cliente!"):
@@ -569,10 +568,7 @@ class App(ctk.CTk):
             def salvar_edicao():
                 conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE clientes SET nome=?, rua=?, numero=?, bairro=?, referencia=? WHERE telefone=?",
-                    (e_nome.get(), e_rua.get(), e_num.get(), e_bairro.get(), e_ref.get(), dados_cli[0])
-                )
+                cursor.execute("UPDATE clientes SET nome=?, rua=?, numero=?, bairro=?, referencia=? WHERE telefone=?", (e_nome.get(), e_rua.get(), e_num.get(), e_bairro.get(), e_ref.get(), dados_cli[0]))
                 conn.commit()
                 conn.close()
                 messagebox.showinfo("Sucesso", "Dados atualizados!")
@@ -581,115 +577,59 @@ class App(ctk.CTk):
 
             ctk.CTkButton(edit_win, text="SALVAR ALTERAÇÕES", command=salvar_edicao, fg_color="#27AE60").pack(pady=20)
 
-        def render_lista_clientes(clientes):
-            for widget in scroll.winfo_children():
-                widget.destroy()
+        def modal_adicionar_lembrete(dados_cli):
+            lem_win = ctk.CTkToplevel(top)
+            lem_win.title(f"Novo Lembrete: {dados_cli[1]}")
+            lem_win.geometry("400x300")
+            lem_win.attributes("-topmost", True)
+            lem_win.lift(); lem_win.focus_force(); lem_win.grab_set()
+            
+            ctk.CTkLabel(lem_win, text="Nome do Medicamento:").pack(anchor="w", padx=20, pady=(20,0))
+            e_med = ctk.CTkEntry(lem_win); e_med.pack(fill="x", padx=20)
+            ctk.CTkLabel(lem_win, text="Duração (Dias):").pack(anchor="w", padx=20)
+            e_dias = ctk.CTkEntry(lem_win); e_dias.pack(fill="x", padx=20)
+            
+            def salvar_lembrete_manual():
+                med = e_med.get()
+                dias = e_dias.get()
+                if not med or not dias.isdigit():
+                    messagebox.showwarning("Erro", "Preencha corretamente.")
+                    return
+                hoje_dt = datetime.now()
+                d_int = int(dias)
+                data_aviso = (hoje_dt + timedelta(days=d_int-3)).strftime("%Y-%m-%d")
+                conn = sqlite3.connect(DB_PATH)
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO lembretes (cliente_tel, medicamento, data_aviso, status) VALUES (?, ?, ?, 'PENDENTE')", (dados_cli[0], med, data_aviso))
+                conn.commit()
+                conn.close()
+                messagebox.showinfo("Sucesso", "Lembrete agendado!")
+                lem_win.destroy()
+                self.verificar_avisos_hoje_silencioso()
 
-            if not clientes:
-                ctk.CTkLabel(scroll, text="Nenhum cliente encontrado.").pack(pady=20)
-                return
-
-            for cli in clientes:
-                card = ctk.CTkFrame(scroll, fg_color="#2C3E50")
-                card.pack(fill="x", pady=5)
-                tel_fmt = self.formatar_telefone_visual(cli[0])
-                info_texto = f"{cli[1]} - {tel_fmt}\n{cli[2]}, {cli[3]} - {cli[4]}"
-                ctk.CTkLabel(card, text=info_texto, font=("Arial", 13), justify="left", anchor="w").pack(side="left", padx=10, pady=10)
-                
-                ctk.CTkButton(
-                    card, text="✅ NOVO PEDIDO", font=("Arial", 12, "bold"),
-                    width=120, fg_color="#2ECC71", text_color="black",
-                    command=lambda c=cli: usar_cliente_para_pedido(c)
-                ).pack(side="right", padx=10)
-
-                ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B", command=lambda t=cli[0]: deletar_cliente(t)).pack(side="right", padx=5)
-                ctk.CTkButton(card, text="✏️", width=40, fg_color="#F39C12", command=lambda c=cli: modal_editar_cliente(c)).pack(side="right", padx=5)
-
-        def carregar_clientes(termo=""):
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            if termo:
-                t = f"%{termo}%"
-                cursor.execute("SELECT * FROM clientes WHERE nome LIKE ? OR telefone LIKE ? ORDER BY nome", (t, t))
-            else:
-                cursor.execute("SELECT * FROM clientes ORDER BY nome LIMIT 50")
-            clientes = cursor.fetchall()
-            conn.close()
-            render_lista_clientes(clientes)
-
-        def carregar_recompras():
-            for widget in scroll.winfo_children():
-                widget.destroy()
-
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT DISTINCT c.telefone, c.nome, c.rua, c.numero, c.bairro, c.referencia,
-                                MIN(l.data_aviso) as proxima_data
-                FROM clientes c
-                JOIN lembretes l ON l.cliente_tel = c.telefone
-                WHERE l.status = 'PENDENTE'
-                GROUP BY c.telefone, c.nome, c.rua, c.numero, c.bairro, c.referencia
-                ORDER BY proxima_data ASC
-            """)
-            clientes = cursor.fetchall()
-            conn.close()
-
-            if not clientes:
-                ctk.CTkLabel(scroll, text="Nenhuma recompra pendente agora.").pack(pady=20)
-                return
-
-            for cli in clientes:
-                telefone, nome, rua, numero, bairro, referencia, prox = cli
-                card = ctk.CTkFrame(scroll, fg_color="#3A3A3A")
-                card.pack(fill="x", pady=5)
-
-                tel_fmt = self.formatar_telefone_visual(telefone)
-                data_str = prox if prox else "—"
-
-                info_texto = f"{nome} - {tel_fmt}\n{rua}, {numero} - {bairro}\n📅 Próxima recompra: {data_str}"
-                ctk.CTkLabel(card, text=info_texto, font=("Arial", 13), justify="left", anchor="w").pack(side="left", padx=10, pady=10)
-
-                ctk.CTkButton(
-                    card, text="✅ NOVO PEDIDO", font=("Arial", 12, "bold"),
-                    width=120, fg_color="#2ECC71", text_color="black",
-                    command=lambda c=(telefone, nome, rua, numero, bairro, referencia): usar_cliente_para_pedido(c)
-                ).pack(side="right", padx=10)
-
-        # ✅ Botões superiores (voltou Recompras)
-        btn_buscar = ctk.CTkButton(frame_busca, text="🔍", width=50, command=lambda: carregar_clientes(entry_busca.get()))
-        btn_buscar.pack(side="right")
-
-        btn_recompras = ctk.CTkButton(frame_busca, text="🔔 RECOMPRAS", width=140, fg_color="#555", command=carregar_recompras)
-        btn_recompras.pack(side="right", padx=(5, 0))
-
-        btn_todos = ctk.CTkButton(frame_busca, text="📋 TODOS", width=110, fg_color="#34495E", command=lambda: carregar_clientes(""))
-        btn_todos.pack(side="right", padx=(5, 0))
+            ctk.CTkButton(lem_win, text="AGENDAR", command=salvar_lembrete_manual, fg_color="#8E44AD").pack(pady=20)
 
         entry_busca.bind("<Return>", lambda event: carregar_clientes(entry_busca.get()))
+        btn_buscar = ctk.CTkButton(frame_busca, text="🔍", width=50, command=lambda: carregar_clientes(entry_busca.get()))
+        btn_buscar.pack(side="right")
         carregar_clientes()
 
     # ---------------- FUNÇÕES DE SUPORTE ----------------
     def limpar_telefone(self, tel):
         numeros = "".join(filter(str.isdigit, tel))
         tam = len(numeros)
-        if tam == 8 or tam == 9:
-            return f"{DDD_PADRAO}{numeros}"
+        if tam == 8 or tam == 9: return f"{DDD_PADRAO}{numeros}"
         return numeros
 
     def formatar_telefone_visual(self, tel):
         numeros = "".join(filter(str.isdigit, tel))
-        if len(numeros) == 11:
-            return f"({numeros[:2]}) {numeros[2:7]}-{numeros[7:]}"
-        elif len(numeros) == 10:
-            return f"({numeros[:2]}) {numeros[2:6]}-{numeros[6:]}"
+        if len(numeros) == 11: return f"({numeros[:2]}) {numeros[2:7]}-{numeros[7:]}"
+        elif len(numeros) == 10: return f"({numeros[:2]}) {numeros[2:6]}-{numeros[6:]}"
         return tel
 
     def formatar_float(self, valor_str):
-        try:
-            return float(valor_str.replace(",", ".").strip())
-        except:
-            return 0.0
+        try: return float(valor_str.replace(",", ".").strip())
+        except: return 0.0
 
     def toggle_lembrete(self):
         if self.chk_lembrete.get() == 1:
@@ -705,8 +645,7 @@ class App(ctk.CTk):
         self.entry_bairro.delete(0, "end"); self.entry_ref.delete(0, "end")
         self.entry_val.delete(0, "end"); self.entry_taxa.delete(0, "end")
         self.entry_troco.delete(0, "end")
-        self.lbl_total.configure(text="TOTAL: R$ 0.00")
-        self.lbl_troco.configure(text="Troco: R$ 0.00")
+        self.lbl_total.configure(text="TOTAL: R$ 0.00"); self.lbl_troco.configure(text="Troco: R$ 0.00")
         
         # Reset Pagamento
         self.chk_pagamento_duplo.deselect()
@@ -717,25 +656,20 @@ class App(ctk.CTk):
         self.entry_val_pag2.delete(0, "end")
         self.entry_troco.configure(state="normal")
         
-        self.chk_lembrete.deselect()
-        self.toggle_lembrete()
-        self.entry_med_nome.delete(0, "end")
-        self.entry_dias_duracao.delete(0, "end")
+        self.chk_lembrete.deselect(); self.toggle_lembrete()
+        self.entry_med_nome.delete(0, "end"); self.entry_dias_duracao.delete(0, "end")
         self.entry_tel.focus_set()
 
     def buscar_cliente(self, event=None):
         tel_bruto = self.entry_tel.get()
-        if not tel_bruto.strip():
-            return
-
+        if not tel_bruto.strip(): return
         tel_limpo = self.limpar_telefone(tel_bruto)
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         try:
             cursor.execute("SELECT nome, rua, numero, bairro, referencia FROM clientes WHERE telefone = ?", (tel_limpo,))
             res = cursor.fetchone()
-        except:
-            res = None
+        except: res = None
         conn.close()
         
         if res:
@@ -744,11 +678,9 @@ class App(ctk.CTk):
             if res[2]: self.entry_num.delete(0, "end"); self.entry_num.insert(0, res[2])
             if res[3]: self.entry_bairro.delete(0, "end"); self.entry_bairro.insert(0, res[3])
             if res[4]: self.entry_ref.delete(0, "end"); self.entry_ref.insert(0, res[4])
-
             if self.entry_tel.get() != self.formatar_telefone_visual(tel_limpo):
                 self.entry_tel.delete(0, "end")
                 self.entry_tel.insert(0, self.formatar_telefone_visual(tel_limpo))
-
             self.after(10, lambda: self.entry_val.focus_set())
         else:
             self.entry_nome.focus_set()
@@ -759,103 +691,98 @@ class App(ctk.CTk):
         if event:
             self.entry_val.delete(0, "end"); self.entry_val.insert(0, f"{val_prod:.2f}")
             self.entry_taxa.delete(0, "end"); self.entry_taxa.insert(0, f"{val_taxa:.2f}")
-
         total = val_prod + val_taxa
         self.lbl_total.configure(text=f"TOTAL: R$ {total:.2f}")
         return total
 
-    # ---------------- BACKUP ----------------
     def fazer_backup_seguranca(self):
         try:
             db_origem = DB_PATH
             if not os.path.exists(db_origem):
                 messagebox.showerror("Erro", "Banco de dados não encontrado.")
                 return
-
             hoje_str = datetime.now().strftime("%Y-%m-%d")
             nome_sugerido = f"backup_totalpharma_{hoje_str}.db"
-            destino = filedialog.asksaveasfilename(
-                title="Salvar Backup de Segurança",
-                initialfile=nome_sugerido,
-                defaultextension=".db",
-                filetypes=[("Arquivo de Banco de Dados", "*.db")]
-            )
+            destino = filedialog.asksaveasfilename(title="Salvar Backup de Segurança", initialfile=nome_sugerido, defaultextension=".db", filetypes=[("Arquivo de Banco de Dados", "*.db")])
             if destino:
                 shutil.copy2(db_origem, destino)
                 messagebox.showinfo("Sucesso", f"Backup realizado com sucesso!\n\nSalvo em:\n{destino}")
         except Exception as e:
             messagebox.showerror("Erro Backup", f"Não foi possível fazer o backup:\n{e}")
 
-    # ---------------- CLIENTE ----------------
     def salvar_apenas_cliente(self):
         tel_limpo = self.limpar_telefone(self.entry_tel.get())
         nome = self.entry_nome.get().strip()
         if not tel_limpo or not nome:
             messagebox.showwarning("Aviso", "Para cadastrar, preencha pelo menos Telefone e Nome.")
             return
-
         rua = self.entry_rua.get().strip()
         num = self.entry_num.get().strip()
         bairro = self.entry_bairro.get().strip()
         ref = self.entry_ref.get().strip()
-
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         try:
-            cursor.execute(
-                "INSERT OR REPLACE INTO clientes (telefone, nome, rua, numero, bairro, referencia) VALUES (?, ?, ?, ?, ?, ?)", 
-                (tel_limpo, nome, rua, num, bairro, ref)
-            )
+            cursor.execute("INSERT OR REPLACE INTO clientes (telefone, nome, rua, numero, bairro, referencia) VALUES (?, ?, ?, ?, ?, ?)", 
+                           (tel_limpo, nome, rua, num, bairro, ref))
             conn.commit()
             messagebox.showinfo("Sucesso", f"Cliente {nome} salvo/atualizado com sucesso!")
         except Exception as e:
             messagebox.showerror("Erro BD", str(e))
-        finally:
-            conn.close()
+        finally: conn.close()
 
-    # ---------------- ETIQUETA ----------------
     def imprimir_apenas_endereco(self):
         tel_limpo = self.limpar_telefone(self.entry_tel.get())
         nome = self.entry_nome.get().strip()
         if not tel_limpo or not nome:
             messagebox.showwarning("Aviso", "Preencha dados do cliente.")
             return
-
         rua = self.entry_rua.get().strip()
         num = self.entry_num.get().strip()
         bairro = self.entry_bairro.get().strip()
         ref = self.entry_ref.get().strip()
         tel_fmt = self.formatar_telefone_visual(tel_limpo)
-
         rua_wrap = textwrap.fill(f"{rua}, {num}", width=LARGURA_PAPEL)
         bairro_wrap = textwrap.fill(f"Bairro: {bairro}", width=LARGURA_PAPEL)
-
-        ref_wrap = ""
-        if ref:
-            ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
+        ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
 
         texto = "-" * 32 + "\n       ENTREGA RAPIDA\n" + "-" * 32 + "\n"
         texto += f"CLI: {nome}\nTEL: {tel_fmt}\n" + "-" * 32 + "\n"
         texto += f"{rua_wrap}\n{bairro_wrap}\n\n"
-        if ref_wrap:
-            texto += f"{ref_wrap}\n"
+        if ref: texto += f"{ref_wrap}\n"
         texto += "-" * 32 + "\n" + f"MOTO: {self.var_entregador.get()}\n" + "-" * 32 + "\n"
-
         self.imprimir_via_windows_gdi(texto)
 
-    # ---------------- FINALIZAR PEDIDO ----------------
+    def imprimir_via_windows_gdi(self, texto_cupom):
+        try:
+            hDC = win32ui.CreateDC()
+            hDC.CreatePrinterDC(win32print.GetDefaultPrinter())
+            hDC.StartDoc("Cupom TotalPharma")
+            hDC.StartPage()
+            font_dict = {'name': 'Courier New', 'height': 32, 'weight': 600} 
+            font = win32ui.CreateFont(font_dict)
+            hDC.SelectObject(font)
+            y = 50
+            for linha in texto_cupom.split("\n"):
+                hDC.TextOut(10, y, linha)
+                y += 32
+            hDC.TextOut(10, y + 50, ".")
+            hDC.EndPage()
+            hDC.EndDoc()
+            hDC.DeleteDC()
+        except Exception as e:
+            messagebox.showerror("Erro GDI", f"Erro na impressão:\n{e}")
+
     def finalizar(self):
         tel_limpo = self.limpar_telefone(self.entry_tel.get())
         nome = self.entry_nome.get().strip()
         if not tel_limpo or not nome:
             messagebox.showwarning("Aviso", "Preencha Telefone e Nome.")
             return
-
         rua = self.entry_rua.get().strip()
         num = self.entry_num.get().strip()
         bairro = self.entry_bairro.get().strip()
         ref = self.entry_ref.get().strip()
-
         total = self.atualizar_totais()
         if total <= 0:
             messagebox.showwarning("Aviso", "Valor total zerado.")
@@ -873,12 +800,11 @@ class App(ctk.CTk):
                 data_aviso = (hoje_dt + timedelta(days=dias-3)).strftime("%Y-%m-%d")
                 salvar_lembrete = True
 
-        # --- Lógica de Pagamento ---
+        # --- Lógica de Pagamento Avançada ---
         pag_desc = ""
         pag_resumo_bd = "" 
         
         forma1 = self.combo_pag1.get()
-
         if self.chk_pagamento_duplo.get() == 0:
             # Pagamento Único
             if forma1 == "Cartão":
@@ -889,29 +815,21 @@ class App(ctk.CTk):
                 pag_desc = f"PAGAMENTO: {forma1.upper()}"
                 pag_resumo_bd = forma1
                 
-            # ✅ Troco em linhas menores e mais seguras
             if forma1 == "Dinheiro":
                 pago = self.formatar_float(self.entry_troco.get())
                 troco = pago - total
-
-                if pago > 0:
-                    pag_desc += f"\nDinheiro entregue: R$ {pago:.2f}"
-
-                if troco > 0:
-                    pag_desc += f"\nTroco: R$ {troco:.2f}"
-                else:
-                    pag_desc += "\nSem Troco"
-
+                if troco > 0: pag_desc += f"\nDinheiro: R$ {pago:.2f} | Troco: R$ {troco:.2f}"
+                else: pag_desc += "\nSem Troco"
         else:
             # Pagamento Duplo
             val1 = self.formatar_float(self.entry_val_pag1.get())
             parc1 = self.combo_parcelas1.get() if forma1 == "Cartão" else ""
-            desc1 = f"{forma1} {parc1}".strip()
+            desc1 = f"{forma1} {parc1}"
             
             forma2 = self.combo_pag2.get()
             val2 = self.formatar_float(self.entry_val_pag2.get())
             parc2 = self.combo_parcelas2.get() if forma2 == "Cartão" else ""
-            desc2 = f"{forma2} {parc2}".strip()
+            desc2 = f"{forma2} {parc2}"
             
             pag_desc = "PAGAMENTO MISTO:"
             pag_desc += f"\n1) {desc1}: R$ {val1:.2f}"
@@ -926,20 +844,12 @@ class App(ctk.CTk):
                 if pago > soma_din:
                     pag_desc += f"\nTroco: R$ {pago - soma_din:.2f}"
 
-        # ✅ wrap no bloco todo de pagamento
-        pag_desc = self.wrap_multiline(pag_desc, LARGURA_PAPEL)
-
         # --- Cupom ---
         tel_fmt = self.formatar_telefone_visual(tel_limpo)
-        sep = "-" * 38 
-
+        sep = "-" * 32 # Ajustado para 32 colunas
         rua_wrap = textwrap.fill(f"{rua}, {num}", width=LARGURA_PAPEL)
         bairro_wrap = textwrap.fill(f"Bairro: {bairro}", width=LARGURA_PAPEL)
-
-        ref_wrap = ""
-        if ref:
-            ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
-
+        ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
         dt_hora = datetime.now().strftime('%d/%m/%Y %H:%M')
 
         cupom = f"""
@@ -967,52 +877,32 @@ TOTAL: R$ {total:.2f}
 
    Obrigado pela preferencia!
 """
-
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         try:
-            # 1. Salva/Atualiza Cliente
-            cursor.execute(
-                "INSERT OR REPLACE INTO clientes (telefone, nome, rua, numero, bairro, referencia) VALUES (?, ?, ?, ?, ?, ?)", 
-                (tel_limpo, nome, rua, num, bairro, ref)
-            )
+            cursor.execute("INSERT OR REPLACE INTO clientes (telefone, nome, rua, numero, bairro, referencia) VALUES (?, ?, ?, ?, ?, ?)", 
+                           (tel_limpo, nome, rua, num, bairro, ref))
                            
-            # 2. Histórico de Endereço
-            cursor.execute(
-                "SELECT rua, numero FROM historico_enderecos WHERE telefone_cliente = ? ORDER BY id DESC LIMIT 1",
-                (tel_limpo,)
-            )
+            cursor.execute("SELECT rua, numero FROM historico_enderecos WHERE telefone_cliente = ? ORDER BY id DESC LIMIT 1", (tel_limpo,))
             ultimo = cursor.fetchone()
             if not ultimo or (ultimo[0] != rua or ultimo[1] != num):
-                cursor.execute(
-                    "INSERT INTO historico_enderecos (telefone_cliente, rua, numero, bairro, referencia, ultimo_uso) VALUES (?, ?, ?, ?, ?, ?)",
-                    (tel_limpo, rua, num, bairro, ref, datetime.now().strftime("%Y-%m-%d"))
-                )
+                 cursor.execute("INSERT INTO historico_enderecos (telefone_cliente, rua, numero, bairro, referencia, ultimo_uso) VALUES (?, ?, ?, ?, ?, ?)",
+                                (tel_limpo, rua, num, bairro, ref, datetime.now().strftime("%Y-%m-%d")))
 
-            # 3. Salva Pedido
-            cursor.execute(
-                "INSERT INTO pedidos (data, cliente_tel, entregador, valor_total, metodo_pagamento, detalhes_pagamento) VALUES (?, ?, ?, ?, ?, ?)", 
-                (datetime.now().strftime("%Y-%m-%d"), tel_limpo, self.var_entregador.get(), total, pag_resumo_bd, pag_desc)
-            )
+            cursor.execute("INSERT INTO pedidos (data, cliente_tel, entregador, valor_total, metodo_pagamento, detalhes_pagamento) VALUES (?, ?, ?, ?, ?, ?)", 
+                           (datetime.now().strftime("%Y-%m-%d"), tel_limpo, self.var_entregador.get(), total, pag_resumo_bd, pag_desc))
             
-            # 4. Salva Lembrete
             if salvar_lembrete:
-                cursor.execute(
-                    "INSERT INTO lembretes (cliente_tel, medicamento, data_aviso, status) VALUES (?, ?, ?, 'PENDENTE')", 
-                    (tel_limpo, med_nome, data_aviso)
-                )
-
+                cursor.execute("INSERT INTO lembretes (cliente_tel, medicamento, data_aviso, status) VALUES (?, ?, ?, 'PENDENTE')", 
+                               (tel_limpo, med_nome, data_aviso))
             conn.commit()
-
         except Exception as e:
             messagebox.showerror("Erro BD", str(e))
         conn.close()
 
         self.imprimir_via_windows_gdi(cupom)
         self.limpar_tela()
-        self.verificar_avisos_hoje_silencioso()
 
-    # ---------------- ALERTAS ----------------
     def verificar_avisos_hoje_silencioso(self):
         try:
             hoje = datetime.now().strftime("%Y-%m-%d")
@@ -1021,23 +911,15 @@ TOTAL: R$ {total:.2f}
             cursor.execute("SELECT count(*) FROM lembretes WHERE data_aviso <= ? AND status = 'PENDENTE'", (hoje,))
             qtd = cursor.fetchone()[0]
             conn.close()
-            if qtd > 0:
-                self.btn_alertas.configure(fg_color="#E74C3C", text=f"🔔 {qtd} CLIENTES!") 
-            else:
-                self.btn_alertas.configure(fg_color="#555", text="🔔 RECOMPRAS")
-        except:
-            pass
+            if qtd > 0: self.btn_alertas.configure(fg_color="#E74C3C", text=f"🔔 {qtd} CLIENTES!") 
+            else: self.btn_alertas.configure(fg_color="#555", text="🔔 RECOMPRAS")
+        except: pass
 
     def ver_alertas_recompra(self):
         hoje = datetime.now().strftime("%Y-%m-%d")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT l.id, c.nome, c.telefone, l.medicamento, l.data_aviso "
-            "FROM lembretes l JOIN clientes c ON l.cliente_tel = c.telefone "
-            "WHERE l.data_aviso <= ? AND l.status = 'PENDENTE'",
-            (hoje,)
-        )
+        cursor.execute("SELECT l.id, c.nome, c.telefone, l.medicamento, l.data_aviso FROM lembretes l JOIN clientes c ON l.cliente_tel = c.telefone WHERE l.data_aviso <= ? AND l.status = 'PENDENTE'", (hoje,))
         dados = cursor.fetchall()
         conn.close()
 
@@ -1070,8 +952,7 @@ TOTAL: R$ {total:.2f}
 
     def abrir_whatsapp_recompra(self, nome, telefone, remedio):
         numeros = "".join(filter(str.isdigit, telefone))
-        if len(numeros) <= 11:
-            numeros = "55" + numeros
+        if len(numeros) <= 11: numeros = "55" + numeros
         msg = f"Olá {nome}, tudo bem? 👋\n\nAqui é da *Farmácia TotalPharma*.\n\nPassando apenas para lembrar que está próximo da data de reposição do seu *{remedio}*.\n\nGostaria de garantir a entrega agora para não ficar sem? 🛵💊"
         link = f"https://wa.me/{numeros}?text={urllib.parse.quote(msg)}"
         webbrowser.open(link)
@@ -1086,7 +967,6 @@ TOTAL: R$ {total:.2f}
         self.ver_alertas_recompra()
         self.verificar_avisos_hoje_silencioso()
 
-    # ---------------- RELATÓRIO ----------------
     def abrir_janela_relatorio(self):
         hoje = datetime.now().strftime("%Y-%m-%d")
         conn = sqlite3.connect(DB_PATH)
@@ -1115,16 +995,14 @@ TOTAL: R$ {total:.2f}
         ctk.CTkFrame(top, height=2, fg_color="gray").pack(fill="x", padx=20, pady=10)
 
         ctk.CTkLabel(top, text="POR ENTREGADOR (Qtd)", font=("Arial", 14, "bold")).pack()
-        if not dados_entregadores:
-            ctk.CTkLabel(top, text="Nenhuma entrega hoje.").pack()
+        if not dados_entregadores: ctk.CTkLabel(top, text="Nenhuma entrega hoje.").pack()
         else:
-            for nome_e, qtd in dados_entregadores:
-                ctk.CTkLabel(top, text=f"{nome_e}: {qtd} entregas").pack(anchor="w", padx=40)
+            for nome, qtd in dados_entregadores:
+                ctk.CTkLabel(top, text=f"{nome}: {qtd} entregas").pack(anchor="w", padx=40)
 
         ctk.CTkFrame(top, height=2, fg_color="gray").pack(fill="x", padx=20, pady=10)
         ctk.CTkLabel(top, text="POR PAGAMENTO (R$)", font=("Arial", 14, "bold")).pack()
-        if not dados_pagamentos:
-            ctk.CTkLabel(top, text="Nenhum pagamento hoje.").pack()
+        if not dados_pagamentos: ctk.CTkLabel(top, text="Nenhum pagamento hoje.").pack()
         else:
             for tipo, val in dados_pagamentos:
                 tipo_str = tipo if tipo else "Outros"
@@ -1135,29 +1013,16 @@ TOTAL: R$ {total:.2f}
 
     def exportar_csv(self, data_hoje):
         try:
-            filename = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("Arquivo CSV", "*.csv")],
-                initialfile=f"Relatorio_{data_hoje}.csv",
-                title="Salvar Relatório"
-            )
-            if not filename:
-                return
-
+            filename = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("Arquivo CSV", "*.csv")], initialfile=f"Relatorio_{data_hoje}.csv", title="Salvar Relatório")
+            if not filename: return
             conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT p.id, p.data, c.nome, p.entregador, p.valor_total, p.metodo_pagamento, p.detalhes_pagamento "
-                "FROM pedidos p JOIN clientes c ON p.cliente_tel = c.telefone WHERE p.data = ?",
-                (data_hoje,)
-            )
+            cursor.execute("SELECT p.id, p.data, c.nome, p.entregador, p.valor_total, p.metodo_pagamento, p.detalhes_pagamento FROM pedidos p JOIN clientes c ON p.cliente_tel = c.telefone WHERE p.data = ?", (data_hoje,))
             dados = cursor.fetchall()
             conn.close()
-
             if not dados:
                 messagebox.showinfo("Vazio", "Não há dados para exportar hoje.")
                 return
-
             with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f, delimiter=';') 
                 writer.writerow(["ID", "Data", "Cliente", "Entregador", "Valor (R$)", "Metodo", "Detalhes Pagamento"])
@@ -1165,12 +1030,10 @@ TOTAL: R$ {total:.2f}
                     linha_fmt = list(linha)
                     linha_fmt[4] = f"{linha[4]:.2f}".replace(".", ",")
                     writer.writerow(linha_fmt)
-
             messagebox.showinfo("Sucesso", "Relatório salvo com sucesso!")
         except Exception as e:
             messagebox.showerror("Erro Exportação", str(e))
 
-    # ---------------- FUTUROS ----------------
     def listar_todos_agendamentos(self):
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -1235,7 +1098,6 @@ TOTAL: R$ {total:.2f}
             janela.destroy()
             self.listar_todos_agendamentos()
             self.verificar_avisos_hoje_silencioso()
-
 
 if __name__ == "__main__":
     app = App()
