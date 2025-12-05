@@ -759,13 +759,19 @@ class App(ctk.CTk):
             hDC.CreatePrinterDC(win32print.GetDefaultPrinter())
             hDC.StartDoc("Cupom TotalPharma")
             hDC.StartPage()
-            font_dict = {'name': 'Courier New', 'height': 32, 'weight': 600} 
+            
+            # AJUSTE AQUI: Reduzi de 32 para 24. 
+            # Se ainda ficar grande, tente 20 ou 22.
+            font_dict = {'name': 'Courier New', 'height': 24, 'weight': 600} 
             font = win32ui.CreateFont(font_dict)
             hDC.SelectObject(font)
+            
             y = 50
             for linha in texto_cupom.split("\n"):
                 hDC.TextOut(10, y, linha)
-                y += 32
+                # AJUSTE AQUI: O espaçamento deve acompanhar o tamanho da fonte
+                y += 28 
+                
             hDC.TextOut(10, y + 50, ".")
             hDC.EndPage()
             hDC.EndDoc()
