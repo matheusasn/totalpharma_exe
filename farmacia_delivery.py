@@ -21,12 +21,12 @@ import ctypes
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 DDD_PADRAO = "83" 
-# AJUSTE: Reduzi para 30 para evitar cortar na sua impressora térmica
-LARGURA_PAPEL = 30 
+# AJUSTE: Aumentado para 42 conforme seus testes (preenche melhor o papel)
+LARGURA_PAPEL = 42 
 
 def configurar_identidade_windows():
     try:
-        myappid = 'totalpharma.delivery.pdv.v9.7' 
+        myappid = 'totalpharma.delivery.pdv.v9.8' 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
     except: pass
 
@@ -117,8 +117,8 @@ DB_PATH = init_db()
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("TotalPharma - PDV Profissional V9.7")
-        self.geometry("980x880") # Aumentei um pouco para caber tudo confortavelmente
+        self.title("TotalPharma - PDV Profissional V9.8")
+        self.geometry("980x880")
         
         try:
             if getattr(sys, 'frozen', False):
@@ -157,7 +157,8 @@ class App(ctk.CTk):
         self.entry_tel.bind("<FocusOut>", self.buscar_cliente) 
         self.entry_tel.bind("<Return>", self.buscar_cliente)
         
-        btn_lupa = ctk.CTkButton(frame_tel, text="🔍", width=40, command=self.buscar_cliente, fg_color="#333")
+        # CORRIGIDO: text_color="white" para o ícone aparecer bem
+        btn_lupa = ctk.CTkButton(frame_tel, text="🔍", width=40, command=self.buscar_cliente, fg_color="#333", text_color="white")
         btn_lupa.pack(side="right")
 
         ctk.CTkLabel(frame_cli, text="Nome do Cliente:").pack(anchor="w", padx=15)
@@ -169,8 +170,9 @@ class App(ctk.CTk):
         frame_lbl_end.pack(fill="x", padx=15, pady=(10, 5))
         ctk.CTkLabel(frame_lbl_end, text="Endereço de Entrega:", text_color="#3B8ED0", font=("Arial", 13, "bold")).pack(side="left")
         
+        # CORRIGIDO: text_color="white"
         self.btn_historico = ctk.CTkButton(frame_lbl_end, text="📍 Histórico", width=80, height=20, 
-                                           fg_color="#F39C12", font=("Arial", 10), command=self.abrir_historico_enderecos)
+                                           fg_color="#F39C12", text_color="white", font=("Arial", 10, "bold"), command=self.abrir_historico_enderecos)
         self.btn_historico.pack(side="right")
         
         frame_end_1 = ctk.CTkFrame(frame_cli, fg_color="transparent")
@@ -189,20 +191,25 @@ class App(ctk.CTk):
         self.entry_ref.pack(fill="x", padx=15, pady=(0, 15))
 
         ctk.CTkLabel(frame_cli, text="Selecione o Entregador:").pack(anchor="w", padx=15, pady=(5,0))
-        self.var_entregador = ctk.StringVar(value="Entregador da Manhã")
+        
+        # NOMES ATUALIZADOS: Mais curtos e profissionais
+        self.var_entregador = ctk.StringVar(value="Moto Manhã")
         frame_radio = ctk.CTkFrame(frame_cli, fg_color="transparent")
         frame_radio.pack(fill="x", padx=15, pady=5)
-        ctk.CTkRadioButton(frame_radio, text="Entregador da Manhã", variable=self.var_entregador, value="Entregador da Manhã").pack(anchor="w", pady=2)
-        ctk.CTkRadioButton(frame_radio, text="Entregador da Tarde/Noite", variable=self.var_entregador, value="Entregador da Tarde/Noite").pack(anchor="w", pady=2)
-        ctk.CTkRadioButton(frame_radio, text="Moto Extra", variable=self.var_entregador, value="Moto Extra").pack(anchor="w", pady=2)
+        
+        ctk.CTkRadioButton(frame_radio, text="Entregador A", variable=self.var_entregador, value="Entregador A").pack(anchor="w", pady=2)
+        ctk.CTkRadioButton(frame_radio, text="Entregador B", variable=self.var_entregador, value="Entregador B").pack(anchor="w", pady=2)
+        ctk.CTkRadioButton(frame_radio, text="Moto Extra", variable=self.var_entregador, value="Moto Extra/App").pack(anchor="w", pady=2)
 
         frame_botoes_cli = ctk.CTkFrame(frame_cli, fg_color="transparent")
         frame_botoes_cli.pack(fill="x", padx=15, pady=(20, 10))
         
-        self.btn_salvar_cli = ctk.CTkButton(frame_botoes_cli, text="💾 SALVAR", command=self.salvar_apenas_cliente, fg_color="#2980B9", width=100)
+        # CORRIGIDO: text_color="white"
+        self.btn_salvar_cli = ctk.CTkButton(frame_botoes_cli, text="💾 SALVAR", command=self.salvar_apenas_cliente, fg_color="#2980B9", text_color="white", width=100)
         self.btn_salvar_cli.pack(side="left", expand=True, fill="x", padx=(0, 5))
         
-        self.btn_print_end = ctk.CTkButton(frame_botoes_cli, text="🖨️ ETIQUETA", command=self.imprimir_apenas_endereco, fg_color="#E67E22", width=100)
+        # CORRIGIDO: text_color="white"
+        self.btn_print_end = ctk.CTkButton(frame_botoes_cli, text="🖨️ ETIQUETA", command=self.imprimir_apenas_endereco, fg_color="#E67E22", text_color="white", width=100)
         self.btn_print_end.pack(side="right", expand=True, fill="x", padx=(5, 0))
 
     def criar_coluna_pagamento(self):
@@ -235,7 +242,7 @@ class App(ctk.CTk):
         ctk.CTkFrame(frame_pag, height=2, fg_color="gray").pack(fill="x", padx=20, pady=5)
 
         # ==========================================================
-        # CAIXA BLINDADA DE PAGAMENTO (Tudo fica aqui dentro)
+        # CAIXA BLINDADA DE PAGAMENTO
         # ==========================================================
         self.frame_container_pagamentos = ctk.CTkFrame(frame_pag, fg_color="transparent")
         self.frame_container_pagamentos.pack(fill="x", padx=10, pady=5)
@@ -243,7 +250,7 @@ class App(ctk.CTk):
         self.chk_pagamento_duplo = ctk.CTkCheckBox(self.frame_container_pagamentos, text="Pagamento Misto (2 Formas)", command=self.toggle_pagamento_duplo)
         self.chk_pagamento_duplo.pack(pady=5)
 
-        # Pagamento 1 (Sempre visível)
+        # Pagamento 1
         self.frame_pag1 = ctk.CTkFrame(self.frame_container_pagamentos, fg_color="transparent")
         self.frame_pag1.pack(fill="x", padx=10)
         
@@ -257,9 +264,8 @@ class App(ctk.CTk):
         self.entry_val_pag1.pack(side="right")
         self.entry_val_pag1.bind("<KeyRelease>", self.calcular_troco_dinamico)
 
-        # Pagamento 2 (Oculto, mas filho do container)
+        # Pagamento 2
         self.frame_pag2 = ctk.CTkFrame(self.frame_container_pagamentos, fg_color="transparent")
-        # Ele será packado via código no toggle_pagamento_duplo
 
         self.combo_pag2 = ctk.CTkComboBox(self.frame_pag2, values=["Dinheiro", "Pix", "Cartão"], command=self.mudou_forma_pag2, width=110)
         self.combo_pag2.pack(side="left", padx=(0,5))
@@ -271,7 +277,7 @@ class App(ctk.CTk):
         self.entry_val_pag2.pack(side="right")
         self.entry_val_pag2.bind("<FocusIn>", self.auto_completar_restante)
 
-        # Troco (Filho do container, sempre no final dele)
+        # Troco
         self.frame_troco = ctk.CTkFrame(self.frame_container_pagamentos, fg_color="transparent")
         self.frame_troco.pack(fill="x", padx=10, pady=(10,0))
         
@@ -292,31 +298,34 @@ class App(ctk.CTk):
         self.entry_med_nome = ctk.CTkEntry(self.frame_fidelidade, placeholder_text="Nome do Remédio")
         self.entry_dias_duracao = ctk.CTkEntry(self.frame_fidelidade, placeholder_text="Dura quantos dias?", width=120)
 
-        # Botão IMPRIMIR (Sempre abaixo de tudo)
+        # Botão IMPRIMIR (Mantive preto pois o fundo é verde brilhante, fica melhor)
         self.btn_imprimir = ctk.CTkButton(frame_pag, text="✅ SALVAR E IMPRIMIR", command=self.finalizar, height=50, fg_color="#2CC985", text_color="black", font=("Arial", 15, "bold"))
         self.btn_imprimir.pack(fill="x", padx=20, pady=(15, 10))
         
         # --- BOTÕES DE AÇÃO ---
         frame_botoes = ctk.CTkFrame(frame_pag, fg_color="transparent")
         frame_botoes.pack(fill="x", padx=20)
-        self.btn_limpar = ctk.CTkButton(frame_botoes, text="LIMPAR", command=self.limpar_tela, fg_color="#C0392B", width=70)
+        
+        # CORRIGIDO: text_color="white" para todos os botões cinza/vermelho/azul
+        self.btn_limpar = ctk.CTkButton(frame_botoes, text="LIMPAR", command=self.limpar_tela, fg_color="#C0392B", text_color="white", width=70)
         self.btn_limpar.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        self.btn_relatorio = ctk.CTkButton(frame_botoes, text="RELATÓRIO", command=self.abrir_janela_relatorio, fg_color="#555", width=70)
+        
+        self.btn_relatorio = ctk.CTkButton(frame_botoes, text="RELATÓRIO", command=self.abrir_janela_relatorio, fg_color="#555", text_color="white", width=70)
         self.btn_relatorio.pack(side="left", fill="x", expand=True, padx=(5, 5))
         
-        self.btn_alertas = ctk.CTkButton(frame_botoes, text="🔔 HOJE", command=self.ver_alertas_recompra, fg_color="#555", width=70)
+        self.btn_alertas = ctk.CTkButton(frame_botoes, text="🔔 HOJE", command=self.ver_alertas_recompra, fg_color="#555", text_color="white", width=70)
         self.btn_alertas.pack(side="right", fill="x", expand=True, padx=(5, 0))
-        self.btn_futuros = ctk.CTkButton(frame_botoes, text="📅 FUTUROS", command=self.listar_todos_agendamentos, fg_color="#34495E", width=70)
+        self.btn_futuros = ctk.CTkButton(frame_botoes, text="📅 FUTUROS", command=self.listar_todos_agendamentos, fg_color="#34495E", text_color="white", width=70)
         self.btn_futuros.pack(side="right", fill="x", expand=True, padx=(5, 0))
 
         # --- GESTÃO ---
         frame_gestao = ctk.CTkFrame(frame_pag, fg_color="transparent")
         frame_gestao.pack(fill="x", padx=20, pady=(10, 20))
         
-        self.btn_backup = ctk.CTkButton(frame_gestao, text="💾 BACKUP", command=self.fazer_backup_seguranca, fg_color="#8E44AD", width=100)
+        self.btn_backup = ctk.CTkButton(frame_gestao, text="💾 BACKUP", command=self.fazer_backup_seguranca, fg_color="#8E44AD", text_color="white", width=100)
         self.btn_backup.pack(side="left", expand=True, fill="x", padx=(0, 5))
         
-        self.btn_clientes = ctk.CTkButton(frame_gestao, text="👥 CLIENTES", command=self.abrir_gestao_clientes, fg_color="#16A085", width=100)
+        self.btn_clientes = ctk.CTkButton(frame_gestao, text="👥 CLIENTES", command=self.abrir_gestao_clientes, fg_color="#16A085", text_color="white", width=100)
         self.btn_clientes.pack(side="right", expand=True, fill="x", padx=(5, 0))
 
     # ---------------- LÓGICA DE PAGAMENTO E HISTÓRICO ----------------
@@ -399,7 +408,9 @@ class App(ctk.CTk):
         frame_topo = ctk.CTkFrame(top)
         frame_topo.pack(fill="x", padx=10, pady=10)
         ctk.CTkLabel(frame_topo, text="Endereços Antigos", font=("Arial", 14, "bold")).pack(side="left")
-        ctk.CTkButton(frame_topo, text="➕ NOVO ENDEREÇO", width=140, fg_color="#3498DB", 
+        
+        # CORRIGIDO: text_color="white"
+        ctk.CTkButton(frame_topo, text="➕ NOVO ENDEREÇO", width=140, fg_color="#3498DB", text_color="white",
                       command=lambda: self.adicionar_endereco_manual(tel_limpo, top)).pack(side="right")
         
         scroll = ctk.CTkScrollableFrame(top)
@@ -432,7 +443,9 @@ class App(ctk.CTk):
             card.pack(fill="x", pady=5)
             texto = f"{end[0]}, {end[1]}\nBairro: {end[2]}\nRef: {end[3]}"
             ctk.CTkLabel(card, text=texto, justify="left", anchor="w").pack(side="left", padx=10, pady=5)
-            ctk.CTkButton(card, text="USAR ESTE", width=80, fg_color="#27AE60", command=lambda e=end: usar_endereco(e)).pack(side="right", padx=10)
+            
+            # CORRIGIDO: text_color="white"
+            ctk.CTkButton(card, text="USAR ESTE", width=80, fg_color="#27AE60", text_color="white", command=lambda e=end: usar_endereco(e)).pack(side="right", padx=10)
 
     def adicionar_endereco_manual(self, tel_limpo, janela_pai):
         add_win = ctk.CTkToplevel(janela_pai)
@@ -472,7 +485,7 @@ class App(ctk.CTk):
             if scroll_widget:
                 self.carregar_lista_historico(scroll_widget, tel_limpo, janela_pai)
 
-        ctk.CTkButton(add_win, text="SALVAR", command=salvar_novo, fg_color="#2ECC71").pack(pady=20)
+        ctk.CTkButton(add_win, text="SALVAR", command=salvar_novo, fg_color="#2ECC71", text_color="white").pack(pady=20)
 
     # --- GESTÃO DE CLIENTES ---
     def abrir_gestao_clientes(self):
@@ -527,13 +540,14 @@ class App(ctk.CTk):
                 info_texto = f"{cli[1]} - {tel_fmt}\n{cli[2]}, {cli[3]} - {cli[4]}"
                 ctk.CTkLabel(card, text=info_texto, font=("Arial", 13), justify="left", anchor="w").pack(side="left", padx=10, pady=10)
                 
-                # Botão Iniciar Pedido
+                # CORRIGIDO: text_color="black" ou "white" dependendo do fundo. No verde fica melhor preto ou branco forte.
                 ctk.CTkButton(card, text="✅ NOVO PEDIDO", font=("Arial", 12, "bold"), width=120, fg_color="#2ECC71", 
                               text_color="black", command=lambda c=cli: usar_cliente_para_pedido(c)).pack(side="right", padx=10)
 
-                ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B", command=lambda t=cli[0]: deletar_cliente(t)).pack(side="right", padx=5)
-                ctk.CTkButton(card, text="✏️", width=40, fg_color="#F39C12", command=lambda c=cli: modal_editar_cliente(c)).pack(side="right", padx=5)
-                ctk.CTkButton(card, text="🔔", width=40, fg_color="#8E44AD", command=lambda c=cli: modal_adicionar_lembrete(c)).pack(side="right", padx=5)
+                # Ícones menores em branco
+                ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B", text_color="white", command=lambda t=cli[0]: deletar_cliente(t)).pack(side="right", padx=5)
+                ctk.CTkButton(card, text="✏️", width=40, fg_color="#F39C12", text_color="white", command=lambda c=cli: modal_editar_cliente(c)).pack(side="right", padx=5)
+                ctk.CTkButton(card, text="🔔", width=40, fg_color="#8E44AD", text_color="white", command=lambda c=cli: modal_adicionar_lembrete(c)).pack(side="right", padx=5)
 
         def deletar_cliente(telefone):
             if messagebox.askyesno("Excluir", "Tem certeza? Isso apaga o histórico de pedidos deste cliente!"):
@@ -575,7 +589,7 @@ class App(ctk.CTk):
                 edit_win.destroy()
                 carregar_clientes(entry_busca.get())
 
-            ctk.CTkButton(edit_win, text="SALVAR ALTERAÇÕES", command=salvar_edicao, fg_color="#27AE60").pack(pady=20)
+            ctk.CTkButton(edit_win, text="SALVAR ALTERAÇÕES", command=salvar_edicao, fg_color="#27AE60", text_color="white").pack(pady=20)
 
         def modal_adicionar_lembrete(dados_cli):
             lem_win = ctk.CTkToplevel(top)
@@ -607,10 +621,11 @@ class App(ctk.CTk):
                 lem_win.destroy()
                 self.verificar_avisos_hoje_silencioso()
 
-            ctk.CTkButton(lem_win, text="AGENDAR", command=salvar_lembrete_manual, fg_color="#8E44AD").pack(pady=20)
+            ctk.CTkButton(lem_win, text="AGENDAR", command=salvar_lembrete_manual, fg_color="#8E44AD", text_color="white").pack(pady=20)
 
         entry_busca.bind("<Return>", lambda event: carregar_clientes(entry_busca.get()))
-        btn_buscar = ctk.CTkButton(frame_busca, text="🔍", width=50, command=lambda: carregar_clientes(entry_busca.get()))
+        # CORRIGIDO: text_color="white"
+        btn_buscar = ctk.CTkButton(frame_busca, text="🔍", width=50, command=lambda: carregar_clientes(entry_busca.get()), text_color="white")
         btn_buscar.pack(side="right")
         carregar_clientes()
 
@@ -659,6 +674,9 @@ class App(ctk.CTk):
         self.chk_lembrete.deselect(); self.toggle_lembrete()
         self.entry_med_nome.delete(0, "end"); self.entry_dias_duracao.delete(0, "end")
         self.entry_tel.focus_set()
+        
+        # Reset do Radio Button para padrão
+        self.var_entregador.set("Moto Manhã")
 
     def buscar_cliente(self, event=None):
         tel_bruto = self.entry_tel.get()
@@ -760,16 +778,15 @@ class App(ctk.CTk):
             hDC.StartDoc("Cupom TotalPharma")
             hDC.StartPage()
             
-            # AJUSTE AQUI: Reduzi de 32 para 24. 
-            # Se ainda ficar grande, tente 20 ou 22.
-            font_dict = {'name': 'Courier New', 'height': 24, 'weight': 600} 
+            # CONFIGURAÇÃO DE FONTE SEGURA PARA PREENCHER O PAPEL
+            font_dict = {'name': 'Courier New', 'height': 26, 'weight': 600} 
             font = win32ui.CreateFont(font_dict)
             hDC.SelectObject(font)
             
             y = 50
             for linha in texto_cupom.split("\n"):
                 hDC.TextOut(10, y, linha)
-                # AJUSTE AQUI: O espaçamento deve acompanhar o tamanho da fonte
+                # Espaçamento entre linhas ajustado
                 y += 28 
                 
             hDC.TextOut(10, y + 50, ".")
@@ -852,7 +869,7 @@ class App(ctk.CTk):
 
         # --- Cupom ---
         tel_fmt = self.formatar_telefone_visual(tel_limpo)
-        sep = "-" * 32 # Ajustado para 32 colunas
+        sep = "-" * 32 
         rua_wrap = textwrap.fill(f"{rua}, {num}", width=LARGURA_PAPEL)
         bairro_wrap = textwrap.fill(f"Bairro: {bairro}", width=LARGURA_PAPEL)
         ref_wrap = textwrap.fill(f"Obs: {ref}", width=LARGURA_PAPEL)
@@ -917,8 +934,8 @@ TOTAL: R$ {total:.2f}
             cursor.execute("SELECT count(*) FROM lembretes WHERE data_aviso <= ? AND status = 'PENDENTE'", (hoje,))
             qtd = cursor.fetchone()[0]
             conn.close()
-            if qtd > 0: self.btn_alertas.configure(fg_color="#E74C3C", text=f"🔔 {qtd} CLIENTES!") 
-            else: self.btn_alertas.configure(fg_color="#555", text="🔔 RECOMPRAS")
+            if qtd > 0: self.btn_alertas.configure(fg_color="#E74C3C", text=f"🔔 {qtd} CLIENTES!", text_color="white") 
+            else: self.btn_alertas.configure(fg_color="#555", text="🔔 RECOMPRAS", text_color="white")
         except: pass
 
     def ver_alertas_recompra(self):
@@ -949,10 +966,11 @@ TOTAL: R$ {total:.2f}
             lbl_info = ctk.CTkLabel(card, text=f"{nome} ({tel_fmt})\nRemédio: {med}", font=("Arial", 14), anchor="w", justify="left")
             lbl_info.pack(side="left", padx=10, pady=10)
             
+            # CORRIGIDO: text_color="white"
             btn_zap = ctk.CTkButton(card, text="💬 WHATSAPP", width=120, fg_color="#25D366", text_color="white",
                                     command=lambda n=nome, t=tel, m=med: self.abrir_whatsapp_recompra(n, t, m))
             btn_zap.pack(side="right", padx=5)
-            btn_ok = ctk.CTkButton(card, text="✅ JÁ RESOLVI", width=120, fg_color="#27AE60", 
+            btn_ok = ctk.CTkButton(card, text="✅ JÁ RESOLVI", width=120, fg_color="#27AE60", text_color="white", 
                                    command=lambda i=id_lembrete, t=top: self.dar_baixa_lembrete(i, t))
             btn_ok.pack(side="right", padx=5)
 
@@ -1015,7 +1033,8 @@ TOTAL: R$ {total:.2f}
                 ctk.CTkLabel(top, text=f"{tipo_str}: R$ {val:.2f}").pack(anchor="w", padx=40)
         
         ctk.CTkFrame(top, height=2, fg_color="gray").pack(fill="x", padx=20, pady=20)
-        ctk.CTkButton(top, text="SALVAR EM EXCEL (CSV)", command=lambda: self.exportar_csv(hoje), fg_color="#2980B9").pack(fill="x", padx=20, pady=10)
+        # CORRIGIDO: text_color="white"
+        ctk.CTkButton(top, text="SALVAR EM EXCEL (CSV)", command=lambda: self.exportar_csv(hoje), fg_color="#2980B9", text_color="white").pack(fill="x", padx=20, pady=10)
 
     def exportar_csv(self, data_hoje):
         try:
@@ -1088,10 +1107,11 @@ TOTAL: R$ {total:.2f}
             ctk.CTkLabel(frame_info, text=f"Remédio: {med}", text_color="#BDC3C7").pack(anchor="w")
             ctk.CTkLabel(card, text=texto_status, text_color=cor_status, font=("Arial", 13, "bold")).pack(side="left", padx=20)
             
-            btn_apagar = ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B", command=lambda i=id_lembrete, t=top: self.apagar_lembrete(i, t))
+            # CORRIGIDO: text_color="white"
+            btn_apagar = ctk.CTkButton(card, text="🗑️", width=40, fg_color="#C0392B", text_color="white", command=lambda i=id_lembrete, t=top: self.apagar_lembrete(i, t))
             btn_apagar.pack(side="right", padx=5)
             if dias_restantes <= 0:
-                btn_zap = ctk.CTkButton(card, text="💬", width=40, fg_color="#25D366", command=lambda n=nome, tele=tel, m=med: self.abrir_whatsapp_recompra(n, tele, m))
+                btn_zap = ctk.CTkButton(card, text="💬", width=40, fg_color="#25D366", text_color="white", command=lambda n=nome, tele=tel, m=med: self.abrir_whatsapp_recompra(n, tele, m))
                 btn_zap.pack(side="right", padx=5)
 
     def apagar_lembrete(self, id_lembrete, janela):
